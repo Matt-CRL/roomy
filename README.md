@@ -24,8 +24,10 @@ One sentence saying what this does and who it is for.
 
 ## Built with
 
-React and Vite on the front end, Express and PostgreSQL on the back end. The
-client is on GitHub Pages, the API on (host), the database on (host).
+- Front end: React, Vite, and Tailwind CSS
+- Back end: Node.js and Express
+- Authentication and database: Supabase Auth and PostgreSQL
+- Hosting: Vercel
 
 ## Demo mode
 
