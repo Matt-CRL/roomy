@@ -1,176 +1,289 @@
-# Your Project Name
+# Roomy
 
-> **Replace this whole file.** It is a worked example of the README your project
-> will be graded from, not a file to leave as it is. Start with
-> [START-HERE.md](START-HERE.md).
+Roomy is a personal room inventory and approximate 2D layout-planning web
+application. It helps people record belongings, remember where items are
+stored, and organise rooms while rearranging or decorating their space.
 
-One sentence saying what this does and who it is for.
+> **Current progress:** The Week 1 implementation is a working React frontend
+> demo. It currently saves room and item data in the browser, while the
+> Express API, PostgreSQL database, authentication, and deployed services are
+> planned for the next development stages.
 
-**Live site:** https://yourusername.github.io/your-repo-name/
-**API:** https://your-api.onrender.com/healthz
-**Demo video:** (link)
-
-> **This deployment is running in demo mode.** The interface is real; the backend
-> is simulated in your browser so the site works without a server. See
-> [Demo mode](#demo-mode) below. Delete this quote once your API is live.
-
-![A screenshot of the main screen](docs/assets/screenshot.png)
+**Live site:** Not deployed yet
+**API:** Not connected yet
+**Demo video:** To be added
 
 ## What it does
 
-- Report a sighting with a place, a description and a spookiness rating
-- Browse everything reported, newest first
-- Delete a report
+Roomy is designed for people who want a visual and organised way to keep track
+of belongings in bedrooms and other personal rooms. Users can create rooms,
+record items, identify storage relationships, search an inventory, and preview
+basic item dimensions for future room-planning features.
 
 ## Built with
 
-- Front end: React, Vite, and Tailwind CSS
-- Back end: Node.js and Express
-- Authentication and database: Supabase Auth and PostgreSQL
-- Hosting: Vercel
+### Current frontend
+
+- React 18
+- Vite 6
+- Tailwind CSS 4
+- Browser `localStorage` for the current demo data
+
+### Planned application stack
+
+- Node.js and Express for the API
+- PostgreSQL for persistent application data
+- Supabase Auth for user authentication
+- Vercel or another suitable host for deployment
+
+The planned backend and authentication services are not connected to the Week 1
+frontend yet.
+
+## Setup and installation
+
+### Requirements
+
+- Node.js 18 or newer
+- npm
+- Git
+
+The current demo does not require PostgreSQL, Supabase, or an API server.
+
+### Clone and install
+
+```powershell
+git clone https://github.com/Matt-CRL/roomy.git
+cd roomy\client
+npm install
+Copy-Item .env.example .env
+```
+
+On macOS or Linux, use `cp .env.example .env` instead of `Copy-Item`.
 
 ## Demo mode
 
-This repository can run two ways, chosen by one environment variable at **build**
-time.
+The current application is intentionally running as a browser-only demo. Room
+and item state is held in React and persisted to the visitor’s local storage,
+so the interface can be developed and demonstrated before the real API and
+database are available.
 
-**Demo mode is the default.** Only the exact string `false` turns it off, so a
-forgotten or mistyped variable leaves you on the simulated backend with a visible
-notice rather than on a silently broken build.
-
-| `VITE_USE_MOCK_API` | What happens |
-| --- | --- |
-| unset, or `true` | The client answers its own requests from `localStorage`. No server, no database, nothing shared between visitors. This is what the template ships with, so the GitHub Pages link works on day one. |
-| `false` | The client calls the Express API at `VITE_API_BASE_URL`, which reads and writes real PostgreSQL. |
-
-**Demo mode is a starting point and a fallback, not a finished project.** Your
-finals submission is all three pieces deployed and talking to each other. Demo
-mode is there so you can build the interface in week one before the API exists,
-and so you have something to show if a free tier is asleep during your demo.
-
-GitHub Pages serves files and cannot run Node, so the API and the database can
-never live there. They go somewhere else:
-
-| Piece | Options |
-| --- | --- |
-| **API** | Render, Railway, Fly.io, Koyeb, a VPS, or [self-hosted behind a tunnel](../content/extending-your-app/11-self-hosting.md) |
-| **Database** | Neon, Supabase, Railway, Aiven, or your own PostgreSQL |
-
-`content/extending-your-app/` in your course workspace walks through all of it.
-Page 10 is the decision page if you do not know which to pick.
+This is not the final architecture. The finals version should connect the
+frontend to the Express API, PostgreSQL, and authentication services so data is
+private to a signed-in user and available across sessions and devices.
 
 ## Running it yourself
 
-**The client only, in demo mode.** No database needed.
+From the `client/` directory, run:
 
-    cd client
-    npm install
-    cp .env.example .env        # VITE_USE_MOCK_API stays true
-    npm run dev                 # http://localhost:5173
+```powershell
+npm run dev
+```
 
-**The whole stack.** Needs a PostgreSQL, either local or hosted.
+Open the address printed by Vite, normally:
 
-    # 1. the database
-    docker run --name my-pg -e POSTGRES_PASSWORD=devpassword \
-      -e POSTGRES_DB=haunted -p 5432:5432 -d postgres:17
+```text
+http://localhost:5173
+```
 
-    # 2. the API
-    cd server
-    npm install
-    cp .env.example .env        # check DATABASE_URL
-    npm run db:reset            # creates the tables and adds sample rows
-    npm run dev                 # http://localhost:3000
+The first screen opens the Bedroom 1 inventory. Use the navigation to visit
+the Rooms page, enter a room, add or edit items, and switch between grid and
+list views.
 
-    # 3. the client, in another terminal
-    cd client
-    npm install
-    cp .env.example .env
-    # set VITE_USE_MOCK_API=false
-    npm run dev
+To verify that the production build works:
 
-Check the API on its own before you blame the client:
-
-    curl http://localhost:3000/healthz     # is the process alive
-    curl http://localhost:3000/readyz      # is the database reachable
-    curl http://localhost:3000/api/sightings
+```powershell
+npm run build
+npm run preview
+```
 
 ## Environment variables
 
-None of these are committed. `.env.example` in each folder lists them with
-placeholder values.
+The current Roomy screens work without custom environment variables. The
+following variables are included for the planned API integration:
 
-| Name | Where | What it is |
+| Variable | Example value | Purpose |
 | --- | --- | --- |
-| `DATABASE_URL` | server | PostgreSQL connection string. Contains a password |
-| `CORS_ORIGINS` | server | comma-separated origins allowed to call the API |
-| `NODE_ENV` | server | `production` on your host |
-| `PORT` | server | **set by the host**, do not set it yourself |
-| `VITE_USE_MOCK_API` | client, at build time | only `false` turns demo mode off; unset means on |
-| `VITE_API_BASE_URL` | client, at build time | your API's public URL, no trailing slash |
+| `VITE_USE_MOCK_API` | `true` | Keeps the starter API adapter in demo mode. |
+| `VITE_API_BASE_URL` | `http://localhost:3000` | The future Express API base URL. |
 
-Every `VITE_` value is compiled into the built JavaScript and is **public**.
-Never put a key, a password or a connection string in one.
+Values beginning with `VITE_` are compiled into the frontend and are public.
+Never put passwords, database connection strings, or private keys in them.
+
+There is currently no database setup or seed command for the Roomy data model.
+The `server/` directory still contains the template Express/PostgreSQL
+scaffold and will be replaced with Roomy endpoints in a later milestone.
+
+## Features and usage
+
+### Rooms
+
+- View room, item, and storage summaries.
+- Add a room with a custom name.
+- Enter a room by double-clicking its room card.
+- Rename or delete a room from its three-dot menu.
+- Deleting a room also removes the items assigned to it after confirmation.
+
+### Room inventory
+
+- Add an item to the selected room.
+- Edit an item’s name, category, notes, storage status, and planner dimensions.
+- Move an item to another room.
+- Delete an item after confirmation.
+- Search items by name, category, or storage information.
+- Filter between all items, regular items, and storage units.
+- Filter by room-related categories such as bedroom, living room, kitchen,
+  bathroom, and general items.
+- Switch between grid and list views.
+- Open an item focus preview by selecting an inventory card.
+- Open a storage unit’s separate inventory sidebar to view stored items.
+
+### Item form and planner preview
+
+- Item names are limited to 80 characters.
+- Notes are limited to 500 characters.
+- Width and depth values update the basic rectangle preview.
+- Width and depth cannot be set below 1 cm.
+- Storage units display their stored-item count.
+- Regular items display whether they are stored or unstored.
+
+### Theme
+
+Use the light-switch control at the top-right of the page to toggle between
+Light mode and Night mode.
+
+### Current data behavior
+
+Room and item changes are saved to the current browser’s `localStorage`. They
+are not shared with other browsers or users and are not yet stored in
+PostgreSQL. Clearing the site’s local storage resets the demo data.
+
+### API status
+
+No Roomy inventory API endpoints are currently used by the frontend. The
+`client/src/api/` and `server/` folders still contain starter adapter/scaffold
+code from the class template; the existing `/api/sightings` routes are not
+Roomy features. Planned Roomy endpoints will be documented here once the real
+API is implemented.
 
 ## Deploying
 
-**Client, to GitHub Pages.** Already wired up in
-`.github/workflows/deploy-pages.yml`. Two one-time steps:
+Roomy is not deployed yet. Week 1 development is intended to run locally in
+demo mode using `npm run dev`.
 
-1. **Settings > Pages > Build and deployment > Source: GitHub Actions.** Without
-   this the workflow goes green and publishes nothing.
-2. Nothing else, until your API is live. Demo mode is the default, so the first
-   deploy works on its own. When the API is up, add `VITE_USE_MOCK_API` = `false`
-   and `VITE_API_BASE_URL` under **Settings > Secrets and variables > Actions >
-   Variables**, then re-run the workflow.
-
-The repository must be **public** for Pages to serve it on a free account.
-
-**API and database.** Not automated here, because most hosts deploy straight from
-your repository with no workflow at all. Point your host at the `server/` folder,
-set the environment variables in its dashboard, and run `server/db/schema.sql`
-once against the hosted database.
+The repository contains a deployment workflow inherited from the class
+template, but it has not been configured as the project’s final deployment.
+Before deployment, the project still needs a working API, a hosted PostgreSQL
+database, authentication configuration, environment variables, and a verified
+production build. The live site, API, and demo video links will be added here
+after they exist.
 
 ## Project structure
 
-    client/          React front end, built by Vite
-      src/api/       ONE interface, two implementations, chosen by a variable
-      src/components/
-    server/          Express API
-      db/            pool, schema.sql, seed.sql, and a runner for them
-    compose.yml      only if you self-host
-    docs/            your planning documents and weekly reports
+```text
+client/
+  src/
+    App.jsx                 Main application state and page switching
+    pages/                  Rooms, inventory, item form, and related screens
+    components/             Reusable room, item, layout, and common UI pieces
+    assets/                 Local fallback icons and images
+    api/                    Starter API adapter kept for the future backend
+  .env.example              Frontend environment variable template
+  package.json              Frontend scripts and dependencies
+server/                     Starter Express/PostgreSQL scaffold; not connected yet
+docs/                       Planning notes and project documentation
+.github/workflows/          Deployment workflow inherited from the template
+AI-USAGE.md                 Record of AI assistance and project decisions
+```
 
 ## Architecture
 
-Three or four sentences, or a small diagram. Which piece talks to which, and
-where each one is hosted.
+The current Week 1 flow is intentionally simple:
+
+```text
+React/Vite/Tailwind frontend
+            |
+            v
+   React state in App.jsx
+            |
+            v
+     Browser localStorage
+```
+
+The planned production flow is:
+
+```text
+React/Vite/Tailwind frontend
+            |
+            v
+       Express API
+        /       \
+       v         v
+ PostgreSQL   Supabase Auth
+```
+
+The frontend will eventually call the Express API for rooms and inventory.
+The API will validate requests and read or write PostgreSQL, while Supabase
+Auth will provide user authentication. The final hosting arrangement will be
+selected when the backend is implemented.
+
+## Screenshots
+
+### Rooms page
+
+![Roomy Rooms page](docs/assets/rooms-page.png)
+
+### Room inventory
+
+![Roomy room inventory page](docs/assets/room-inventory.png)
+
+These screenshots show the current Week 1 frontend demo running with the
+browser-based sample data.
+
+## Known issues and next steps
+
+- The frontend currently uses browser `localStorage` instead of a shared
+  PostgreSQL database.
+- User registration, login, and Supabase authentication are not implemented.
+- The Express server is still the class template scaffold and does not expose
+  Roomy room or inventory endpoints.
+- The planner button and dimension preview are prototypes; the full movable 2D
+  room planner is not implemented yet.
+- Image upload and persistent image storage are not implemented.
+- The app has not been deployed to a production frontend, API, or database.
+- A final screenshot and deployment links still need to be added to this README.
+
+Next development priorities are to define the Roomy database schema, implement
+the room and inventory API, connect the frontend to PostgreSQL, add
+authentication, and then build the full planner workflow.
 
 ## What I would do next
 
-Three honest bullets. This paragraph is worth more than it looks.
+1. Define the Roomy database schema and API contract for users, rooms, items,
+   and storage relationships.
+2. Replace the browser-only state with Express and PostgreSQL while keeping the
+   current interface working.
+3. Add Supabase authentication, complete the movable 2D planner, and deploy
+   the frontend and backend for the final demonstration.
 
 ## Author
 
-Your name, and a link. Course and section.
+Matt Christian R. Lara
+Bachelor of Science in Computer Science, CS-404
+
+## Documentation
+
+- [Project proposal and design notes](docs/README.md)
+- [AI usage record](AI-USAGE.md)
+- [Class starter instructions](START-HERE.md)
 
 ## AI use
 
-If you used AI while building this, say so here. Honest disclosure is the
-standard in this course and increasingly outside it, and reporting heavy use
-accurately costs you nothing.
-
-This section is the last 10 points of the finals badge, and it wants three
-things:
+This project was built with AI assistance. The detailed record of prompts,
+changes, decisions, and corrections is available in
+[AI-USAGE.md](AI-USAGE.md).
 
 ![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
 
-- the badge above, or one you like better
-- a line naming which assistant you used and how much of the work it touched
-- a link to [AI-USAGE.md](AI-USAGE.md), where the full account lives
+## License
 
-Keep the detail in `AI-USAGE.md` rather than here. This section is the summary a
-visitor reads; that file is the record the badge is graded from.
-
-## Licence
-
-MIT, see [LICENSE](LICENSE). Put your own name in it.
+MIT, see [LICENSE](https://github.com/Matt-CRL/roomy/blob/main/LICENSE).
