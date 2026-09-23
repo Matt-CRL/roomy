@@ -4,6 +4,107 @@
 
 @import "tailwindcss";
 
+@keyframes item-focus-in {
+  from {
+    opacity: 0;
+    transform: translate(
+        var(--item-origin-x, 0px),
+        var(--item-origin-y, 18px)
+      )
+      scale(var(--item-origin-scale, 0.7));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.item-focus-dialog {
+  animation: item-focus-in 320ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+.inventory-sidebar {
+  --inventory-top-fade: 2rem;
+  --inventory-bottom-fade: 2rem;
+  position: relative;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  transform-origin: left center;
+  animation: inventory-sidebar-in 300ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--inventory-top-fade),
+    black calc(100% - var(--inventory-bottom-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--inventory-top-fade),
+    black calc(100% - var(--inventory-bottom-fade)),
+    transparent 100%
+  );
+}
+
+.inventory-sidebar::-webkit-scrollbar {
+  display: none;
+}
+
+.inventory-sidebar-at-top {
+  --inventory-top-fade: 0rem;
+}
+
+.inventory-sidebar-at-bottom {
+  --inventory-bottom-fade: 0rem;
+}
+
+.inventory-sidebar-closing {
+  animation: inventory-sidebar-out 300ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+.inventory-main-recentering {
+  animation: inventory-main-shift 300ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+@keyframes inventory-sidebar-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes inventory-sidebar-out {
+  from {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes inventory-main-shift {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(122px);
+  }
+}
+
 .theme-transition * {
   transition-property: background-color, border-color, color, fill, stroke;
   transition-duration: 280ms;
@@ -19,6 +120,22 @@
 @media (prefers-reduced-motion: reduce) {
   .theme-transition * {
     transition-duration: 0ms !important;
+  }
+
+  .item-focus-dialog {
+    animation: none;
+  }
+
+  .inventory-sidebar {
+    animation: none;
+  }
+
+  .inventory-sidebar-closing {
+    animation: none;
+  }
+
+  .inventory-main-recentering {
+    animation: none;
   }
 }
 

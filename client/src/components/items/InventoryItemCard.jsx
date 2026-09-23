@@ -1,9 +1,4 @@
-const shapeStyles = {
-  portrait: 'h-16 w-10',
-  landscape: 'h-10 w-24',
-  square: 'h-14 w-14',
-  wide: 'h-8 w-20',
-}
+import InventoryTypeIcon from './InventoryTypeIcon'
 
 export default function InventoryItemCard({
   item,
@@ -11,10 +6,9 @@ export default function InventoryItemCard({
   onOptions,
   viewMode = 'grid',
 }) {
-  const shapeClass = shapeStyles[item.shape] ?? shapeStyles.square
   const itemStatus = item.isStorageUnit
     ? `${item.storedCount} inside`
-    : item.storedInside
+    : item.storedInside && item.storedInside !== 'Not stored'
       ? 'Stored'
       : 'Unstored'
 
@@ -31,9 +25,9 @@ export default function InventoryItemCard({
         role="button"
         tabIndex={0}
         aria-label={`View ${item.name}`}
-        onClick={() => onSelect?.(item)}
+        onClick={(event) => onSelect?.(item, event)}
         onKeyDown={handleKeyDown}
-        className="group flex min-h-16 items-center justify-between gap-4 border border-slate-300 bg-white px-4 py-2 transition-all hover:border-orange-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+        className="group flex min-h-16 select-none items-center justify-between gap-4 border border-slate-300 bg-white px-4 py-2 transition-all hover:border-orange-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
       >
         <div className="min-w-0">
           <h3 className="truncate text-xs font-semibold leading-tight text-slate-900">
@@ -71,15 +65,23 @@ export default function InventoryItemCard({
       role="button"
       tabIndex={0}
       aria-label={`View ${item.name}`}
-      onClick={() => onSelect?.(item)}
+      onClick={(event) => onSelect?.(item, event)}
       onKeyDown={handleKeyDown}
-      className="group overflow-hidden border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+      className="group select-none overflow-hidden border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
     >
       <div className="relative flex h-28 items-center justify-center border-b border-slate-300 bg-slate-200">
-        <div
-          aria-hidden="true"
-          className={`border border-slate-500 bg-slate-200 ${shapeClass}`}
-        />
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <InventoryTypeIcon
+            isStorageUnit={item.isStorageUnit}
+            className="h-16 w-16 text-slate-500"
+          />
+        )}
 
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-orange-500/70 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <svg

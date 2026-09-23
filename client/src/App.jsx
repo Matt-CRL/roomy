@@ -3,6 +3,180 @@ import ItemFormPage from './pages/ItemFormPage'
 import RoomsPage from './pages/RoomsPage'
 import RoomInventoryPage from './pages/RoomInventoryPage'
 
+const ROOMS_STORAGE_KEY = 'roomy:rooms'
+const ITEMS_STORAGE_KEY = 'roomy:items'
+
+const defaultRooms = [
+  { id: 'bedroom-1', name: 'Bedroom 1' },
+  { id: 'bedroom-2', name: 'Bedroom 2' },
+  { id: 'kitchen', name: 'Kitchen' },
+]
+
+const defaultItems = [
+  {
+    id: 'wardrobe',
+    roomId: 'bedroom-1',
+    name: 'Wardrobe',
+    category: 'Furniture',
+    isStorageUnit: true,
+    storedCount: 12,
+    storedInside: null,
+    shape: 'portrait',
+  },
+  {
+    id: 'bed-frame',
+    roomId: 'bedroom-1',
+    name: 'Bed frame',
+    category: 'Furniture',
+    isStorageUnit: false,
+    storedInside: null,
+    shape: 'landscape',
+  },
+  {
+    id: 'bedside-table',
+    roomId: 'bedroom-1',
+    name: 'Bedside table',
+    category: 'Furniture',
+    isStorageUnit: true,
+    storedCount: 4,
+    storedInside: null,
+    shape: 'portrait',
+  },
+  {
+    id: 'laptop',
+    roomId: 'bedroom-1',
+    name: 'Laptop',
+    category: 'Electronics',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'landscape',
+  },
+  {
+    id: 'desk-lamp',
+    roomId: 'bedroom-1',
+    name: 'Desk lamp',
+    category: 'Electronics',
+    isStorageUnit: false,
+    storedInside: null,
+    shape: 'portrait',
+  },
+]
+
+const demoStoredItems = [
+  {
+    id: 'wardrobe-book-set',
+    roomId: 'bedroom-1',
+    name: 'Book set',
+    category: 'Books & media',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'landscape',
+  },
+  {
+    id: 'wardrobe-winter-coat',
+    roomId: 'bedroom-1',
+    name: 'Winter coat',
+    category: 'Clothing',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'portrait',
+  },
+  {
+    id: 'wardrobe-camera',
+    roomId: 'bedroom-1',
+    name: 'Camera',
+    category: 'Electronics',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'square',
+  },
+  {
+    id: 'wardrobe-travel-bag',
+    roomId: 'bedroom-1',
+    name: 'Travel bag',
+    category: 'Personal items',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'landscape',
+  },
+  {
+    id: 'wardrobe-headphones',
+    roomId: 'bedroom-1',
+    name: 'Headphones',
+    category: 'Electronics',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'square',
+  },
+  {
+    id: 'wardrobe-documents',
+    roomId: 'bedroom-1',
+    name: 'Important documents',
+    category: 'Documents',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'portrait',
+  },
+  {
+    id: 'wardrobe-scarf',
+    roomId: 'bedroom-1',
+    name: 'Winter scarf',
+    category: 'Clothing',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'wide',
+  },
+  {
+    id: 'wardrobe-game-controller',
+    roomId: 'bedroom-1',
+    name: 'Game controller',
+    category: 'Electronics',
+    isStorageUnit: false,
+    storedInside: 'Wardrobe',
+    shape: 'landscape',
+  },
+]
+
+function loadCollection(key, fallback) {
+  const storedValue = window.localStorage.getItem(key)
+
+  if (storedValue) {
+    try {
+      const parsedValue = JSON.parse(storedValue)
+
+      if (Array.isArray(parsedValue)) {
+        return parsedValue
+      }
+    } catch {
+      window.localStorage.removeItem(key)
+    }
+  }
+
+  return fallback
+}
+
+function loadInitialItems() {
+  const savedItems = loadCollection(ITEMS_STORAGE_KEY, defaultItems)
+  const savedItemIds = new Set(savedItems.map((item) => item.id))
+
+  return [
+    ...savedItems,
+    ...demoStoredItems.filter((item) => !savedItemIds.has(item.id)),
+  ]
+}
+
+function addRoomCounts(rooms, items) {
+  return rooms.map((room) => {
+    const roomItems = items.filter((item) => item.roomId === room.id)
+
+    return {
+      ...room,
+      itemCount: roomItems.length,
+      storageCount: roomItems.filter((item) => item.isStorageUnit).length,
+    }
+  })
+}
+
 function ThemeToggleButton({ isDarkMode, onToggle }) {
   const [sway, setSway] = useState(0)
   const [isPressed, setIsPressed] = useState(false)
@@ -225,10 +399,106 @@ function AppShell({ children, isDarkMode, onToggleTheme }) {
 export default function App() {
   const [currentPage, setCurrentPage] = useState('inventory')
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [selectedRoom, setSelectedRoom] = useState({
-    name: 'Bedroom 1',
-  })
+  const [rooms, setRooms] = useState(() =>
+    loadCollection(ROOMS_STORAGE_KEY, defaultRooms),
+  )
+  const [items, setItems] = useState(() =>
+    loadInitialItems(),
+  )
+  const [selectedRoomId, setSelectedRoomId] = useState('bedroom-1')
   const [selectedItem, setSelectedItem] = useState(null)
+
+  const roomsWithCounts = addRoomCounts(rooms, items)
+  const selectedRoom =
+    roomsWithCounts.find((room) => room.id === selectedRoomId) ??
+    roomsWithCounts[0] ??
+    { id: 'bedroom-1', name: 'Bedroom 1', itemCount: 0, storageCount: 0 }
+
+  useEffect(() => {
+    window.localStorage.setItem(ROOMS_STORAGE_KEY, JSON.stringify(rooms))
+  }, [rooms])
+
+  useEffect(() => {
+    window.localStorage.setItem(ITEMS_STORAGE_KEY, JSON.stringify(items))
+  }, [items])
+
+  function handleAddRoom(room) {
+    setRooms((currentRooms) => [...currentRooms, room])
+  }
+
+  function handleRenameRoom(roomId, name) {
+    setRooms((currentRooms) =>
+      currentRooms.map((room) =>
+        room.id === roomId ? { ...room, name } : room,
+      ),
+    )
+  }
+
+  function handleDeleteRoom(roomId) {
+    const remainingRooms = rooms.filter((room) => room.id !== roomId)
+
+    setRooms(remainingRooms)
+    setItems((currentItems) =>
+      currentItems.filter((item) => item.roomId !== roomId),
+    )
+
+    if (selectedRoomId === roomId) {
+      setSelectedRoomId(remainingRooms[0]?.id ?? null)
+    }
+  }
+
+  function handleSaveItem(formData) {
+    const savedItem = {
+      id: selectedItem?.id ?? `item-${Date.now()}`,
+      roomId: formData.roomId ?? selectedRoom.id,
+      name: formData.name.trim(),
+      category: formData.category,
+      isStorageUnit: Boolean(formData.isStorageUnit),
+      storedInside:
+        formData.isStorageUnit || formData.storedInside === 'Not stored'
+          ? null
+          : formData.storedInside,
+      storedCount: selectedItem?.storedCount ?? 0,
+      notes: formData.notes,
+      width: formData.width ? Number(formData.width) : null,
+      depth: formData.depth ? Number(formData.depth) : null,
+      shape: selectedItem?.shape ?? 'square',
+    }
+
+    setItems((currentItems) => {
+      if (selectedItem) {
+        return currentItems.map((item) =>
+          item.id === selectedItem.id ? savedItem : item,
+        )
+      }
+
+      return [...currentItems, savedItem]
+    })
+    setSelectedItem(null)
+    setCurrentPage('inventory')
+  }
+
+  function handleDeleteItem(itemId) {
+    setItems((currentItems) =>
+      currentItems.filter((item) => item.id !== itemId),
+    )
+    setSelectedItem(null)
+    setCurrentPage('inventory')
+  }
+
+  function handleMoveItem(itemId, roomName) {
+    const targetRoom = rooms.find((room) => room.name === roomName)
+
+    if (!targetRoom) return
+
+    setItems((currentItems) =>
+      currentItems.map((item) =>
+        item.id === itemId ? { ...item, roomId: targetRoom.id } : item,
+      ),
+    )
+    setSelectedItem(null)
+    setCurrentPage('inventory')
+  }
 
   if (currentPage === 'rooms') {
     return (
@@ -237,8 +507,12 @@ export default function App() {
         onToggleTheme={() => setIsDarkMode((current) => !current)}
       >
         <RoomsPage
+          rooms={roomsWithCounts}
+          onAddRoom={handleAddRoom}
+          onRenameRoom={handleRenameRoom}
+          onDeleteRoom={handleDeleteRoom}
           onEnterRoom={(room) => {
-            setSelectedRoom(room)
+            setSelectedRoomId(room.id)
             setCurrentPage('inventory')
           }}
         />
@@ -258,10 +532,10 @@ export default function App() {
           onCancel={() => setCurrentPage('inventory')}
           onBackToRooms={() => setCurrentPage('rooms')}
           onBackToInventory={() => setCurrentPage('inventory')}
-          onSave={() => {
-            setSelectedItem(null)
-            setCurrentPage('inventory')
-          }}
+          rooms={roomsWithCounts}
+          onSave={handleSaveItem}
+          onDeleteItem={handleDeleteItem}
+          onMoveItem={handleMoveItem}
         />
       </AppShell>
     )
@@ -274,6 +548,7 @@ export default function App() {
     >
       <RoomInventoryPage
         room={selectedRoom}
+        items={items.filter((item) => item.roomId === selectedRoom.id)}
         onBackToRooms={() => setCurrentPage('rooms')}
         onAddItem={() => {
           setSelectedItem(null)
