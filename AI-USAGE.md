@@ -40,6 +40,22 @@ updating this file as the project develops.
 - **What I kept, what I changed, and why:** I kept the resizing behavior because it gives immediate visual feedback when editing an item's dimensions. I changed the minimum value to 1 cm because an item cannot have a width or depth of 0.
 - **Commit:** [Initial frontend progress commit](https://github.com/Matt-CRL/roomy/commit/afbef80544aad3c0eb4e64c1eba4336acd2a34f7)
 
+### 2026-09-23 - Item focus preview
+
+- **Tool:** ChatGPT/Codex
+- **What I asked for:** I asked for an inventory item to open in an animated centered preview when clicked.
+- **What it gave back:** It added an item detail popup with a card-to-center animation, item preview, name, category, storage status, dimensions, and notes.
+- **What I kept, what I changed, and why:** I kept the popup and detail layout. I adjusted the size, animation origin, long-note wrapping, and close behavior to match the intended design.
+- **Commit:** [Room management and inventory previews](https://github.com/Matt-CRL/roomy/commit/10a2ad2d800a9289c141d7475a9a332736082062)
+
+### 2026-09-23 - Storage sidebar scrolling
+
+- **Tool:** ChatGPT/Codex
+- **What I asked for:** I asked for an Open inventory action on storage units that reveals a separate sidebar for stored items.
+- **What it gave back:** It added a fixed-height, scrollable sidebar with item cards, hidden scrollbars, and one-card scroll snapping.
+- **What I kept, what I changed, and why:** I kept the separate sidebar layout. I changed its size, opening and closing animations, card spacing, and top/bottom edge behavior to make the scrolling feel more controlled.
+- **Commit:** [Room management and inventory previews](https://github.com/Matt-CRL/roomy/commit/10a2ad2d800a9289c141d7475a9a332736082062)
+
 ## 2. Where the AI got it wrong
 
 ### Case 1 - Dark-mode toggle colors
@@ -56,6 +72,13 @@ updating this file as the project develops.
 - **What I did instead:** I reverted the extra shape selector and kept the simple square/rectangle preview.
 - **Commit:** [Initial frontend progress commit](https://github.com/Matt-CRL/roomy/commit/afbef80544aad3c0eb4e64c1eba4336acd2a34f7)
 
+### Case 3 - Storage sidebar layout and closing animation
+
+- **What it gave me:** AI initially placed the storage sidebar inside the main item card and moved the card while the sidebar was still closing.
+- **What was wrong with it:** The main card expanded, the sidebar overlapped it, and the card briefly shifted or replayed its entrance animation when the sidebar disappeared.
+- **What I did instead:** I separated the sidebar from the item card and staged the closing animation so the sidebar collapses first and the item card recenters afterward.
+- **Commit:** [Room management and inventory previews](https://github.com/Matt-CRL/roomy/commit/10a2ad2d800a9289c141d7475a9a332736082062)
+
 
 ## 3. Who wrote what
 
@@ -64,6 +87,14 @@ updating this file as the project develops.
 - **File:** `client/src/pages/RoomsPage.jsx`
 - **Commit:** [Initial frontend progress commit](https://github.com/Matt-CRL/roomy/commit/afbef80544aad3c0eb4e64c1eba4336acd2a34f7)
 - **What it does and why it is built this way:** I wrote the Rooms page to display the room summary, room cards, add-room card, and room navigation. I built it this way so users can see all their rooms and enter a specific room from one organized page.
+
+- **File:** `client/src/pages/ItemFormPage.jsx`
+- **Commit:** [Room management and inventory previews](https://github.com/Matt-CRL/roomy/commit/10a2ad2d800a9289c141d7475a9a332736082062)
+- **What it does and why it is built this way:** I added the maximum character limits for item names and notes. Item names are limited to 80 characters and notes are limited to 500 characters, with a counter shown for notes so users know how much space remains.
+
+- **File:** `client/src/pages/RoomsPage.jsx`, `client/src/components/rooms/RoomCard.jsx`
+- **Commit:** [Room management and inventory previews](https://github.com/Matt-CRL/roomy/commit/10a2ad2d800a9289c141d7475a9a332736082062)
+- **What it does and why it is built this way:** I added room management actions for renaming and deleting rooms. Rename validates the new name, while delete asks for confirmation before removing the room and its items. I built these actions into the room menu so they stay close to the room they affect.
 
 ### The AI-written part I understand best
 
