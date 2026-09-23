@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import Button from '../components/common/Button'
 import AppNavbar from '../components/layout/AppNavbar'
 
+const ITEM_NAME_MAX_LENGTH = 80
+const ITEM_NOTES_MAX_LENGTH = 500
+
 const categoryGroups = [
   {
     label: 'Bedroom',
@@ -24,8 +27,6 @@ const categoryGroups = [
     categories: ['Documents', 'Tools', 'Cables', 'Miscellaneous'],
   },
 ]
-
-const roomOptions = ['Bedroom 1', 'Bedroom 2', 'Kitchen']
 
 function FormDropdown({
   value,
@@ -131,10 +132,15 @@ export default function ItemFormPage({
   onSave,
   onBackToRooms,
   onBackToInventory,
+  rooms = [],
+  onDeleteItem,
+  onMoveItem,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
   const isEditMode = Boolean(item)
-  const otherRoomOptions = roomOptions.filter((roomOption) => roomOption !== roomName)
+  const otherRoomOptions = rooms
+    .filter((roomOption) => roomOption.id !== room?.id)
+    .map((roomOption) => roomOption.name)
 
   const [form, setForm] = useState({
     name: item?.name ?? '',
@@ -156,11 +162,20 @@ export default function ItemFormPage({
 
   function handleSubmit(event) {
     event.preventDefault()
-    onSave?.({ ...form, room: roomName })
+
+    if (!form.name.trim()) return
+
+    onSave?.({ ...form, room: roomName, roomId: room?.id })
   }
 
   function handleMoveItem() {
-    console.log('Move item to:', moveToRoom)
+    onMoveItem?.(item?.id, moveToRoom)
+  }
+
+  function handleDeleteItem() {
+    if (window.confirm(`Delete ${item?.name ?? 'this item'} permanently?`)) {
+      onDeleteItem?.(item?.id)
+    }
   }
 
   function handleDimensionChange(field, value) {
@@ -196,7 +211,7 @@ export default function ItemFormPage({
 
               <nav
                 aria-label="Breadcrumb"
-                className="flex items-center gap-1 text-sm text-slate-500"
+                className="flex items-center gap-1.5 text-base text-slate-500"
               >
                 <button
                   type="button"
@@ -260,6 +275,8 @@ export default function ItemFormPage({
             <label className="mt-5 block text-xs font-semibold text-slate-900">
               Item name
               <input
+                required
+                maxLength={ITEM_NAME_MAX_LENGTH}
                 value={form.name}
                 onChange={(event) => updateField('name', event.target.value)}
                 placeholder="Item name"
@@ -314,8 +331,14 @@ export default function ItemFormPage({
             )}
 
             <label className="mt-4 block text-xs font-semibold text-slate-900">
-              Notes
+              <span className="flex items-center justify-between gap-3">
+                <span>Notes</span>
+                <span className="text-[10px] font-normal text-slate-500">
+                  {form.notes.length}/{ITEM_NOTES_MAX_LENGTH}
+                </span>
+              </span>
               <textarea
+                maxLength={ITEM_NOTES_MAX_LENGTH}
                 value={form.notes}
                 onChange={(event) => updateField('notes', event.target.value)}
                 placeholder="Add notes about this item"
@@ -406,6 +429,7 @@ export default function ItemFormPage({
                       onChange={setMoveToRoom}
                       options={otherRoomOptions}
                       ariaLabel="Move item to another room"
+                      disabled={otherRoomOptions.length === 0}
                     />
                   </label>
 
@@ -430,7 +454,11 @@ export default function ItemFormPage({
                   </p>
 
                   <div className="mt-auto pt-5">
-                    <Button variant="danger" type="button">
+                    <Button
+                      variant="danger"
+                      type="button"
+                      onClick={handleDeleteItem}
+                    >
                       Delete item
                     </Button>
                   </div>
