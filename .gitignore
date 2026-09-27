@@ -11,6 +11,7 @@ build/
 # Database dumps: a full plain-text copy of your data
 *.dump
 backup*.sql
+*.pem
 
 # Editor and OS noise
 .DS_Store

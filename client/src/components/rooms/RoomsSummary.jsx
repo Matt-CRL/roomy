@@ -51,7 +51,7 @@ function SummaryIcon({ type }) {
   )
 }
 
-export default function RoomsSummary({ rooms }) {
+export default function RoomsSummary({ rooms, loading = false }) {
   const totalItems = rooms.reduce((total, room) => total + room.itemCount, 0)
   const totalStorage = rooms.reduce(
     (total, room) => total + room.storageCount,
@@ -96,7 +96,9 @@ export default function RoomsSummary({ rooms }) {
 
           <div className="mt-3 flex items-end justify-between gap-4">
             <p className="text-2xl font-bold leading-none text-slate-900">
-              {item.value}
+              {loading ? (
+                <span className="inline-block h-7 w-10 animate-pulse bg-slate-200" aria-label="Loading" />
+              ) : item.value}
             </p>
 
             <p className="text-right text-[10px] text-slate-500">

@@ -1,4 +1,5 @@
 import InventoryTypeIcon from './InventoryTypeIcon'
+import { getPhotoImageStyle } from '../../data/photoDisplay'
 
 export default function InventoryItemCard({
   item,
@@ -13,6 +14,7 @@ export default function InventoryItemCard({
       : 'Unstored'
 
   function handleKeyDown(event) {
+    if (event.target !== event.currentTarget) return
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
       onSelect?.(item)
@@ -69,12 +71,13 @@ export default function InventoryItemCard({
       onKeyDown={handleKeyDown}
       className="group select-none overflow-hidden border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
     >
-      <div className="relative flex h-28 items-center justify-center border-b border-slate-300 bg-slate-200">
+      <div className="relative flex h-40 items-center justify-center overflow-hidden border-b border-slate-300 bg-slate-200">
         {item.imageUrl ? (
           <img
             src={item.imageUrl}
             alt=""
-            className="h-full w-full object-cover"
+            style={getPhotoImageStyle(item)}
+            className="h-full w-full"
           />
         ) : (
           <InventoryTypeIcon

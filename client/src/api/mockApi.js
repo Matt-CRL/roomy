@@ -1,75 +1,120 @@
-// The simulated backend.
-//
-// Same function names, same return types, and the same shape of failure as
-// httpApi.js, so your components cannot tell the difference. Data lives in the
-// visitor's own browser and goes no further.
-//
-// This exists so the template's GitHub Pages link works on day one and so you
-// can build the interface before your API is deployed. It is NOT a finished
-// project. See content/extending-your-app page 3.
+// Browser-only Roomy adapter for the visible demo mode.
 
-import seed from './seed.json'
+import { categories } from '../data/categoryOptions'
 
-const KEY = 'final-project:sightings'
+const ROOMS = 'roomy:rooms'
+const ITEMS = 'roomy:items'
+const LAYOUTS = 'roomy:layouts'
 
-// A real network is not instant. Keeping this delay is what forces you to build
-// a loading state now, while it is cheap, instead of discovering you need one
-// the day you switch to the real API.
-const delay = (ms = 250) => new Promise((resolve) => setTimeout(resolve, ms))
+const readRows = (key) => {
+  try { return JSON.parse(localStorage.getItem(key) || '[]') } catch { return [] }
+}
+const saveRows = (key, rows) => localStorage.setItem(key, JSON.stringify(rows))
+const missing = () => { throw new Error('Not found') }
+const wait = () => new Promise((resolve) => setTimeout(resolve, 150))
 
-function read() {
-  const stored = localStorage.getItem(KEY)
-  if (stored) {
-    try {
-      return JSON.parse(stored)
-    } catch {
-      // Corrupted storage. Start again rather than crashing the app.
-      localStorage.removeItem(KEY)
-    }
+export async function listRooms() {
+  await wait()
+  const items = readRows(ITEMS)
+  return readRows(ROOMS).map((room) => ({ ...room,
+    itemCount: items.filter((item) => item.roomId === room.id).length,
+    storageCount: items.filter((item) => item.roomId === room.id && item.isStorageUnit).length,
+  }))
+}
+export async function getRoom(id) { return (await listRooms()).find((room) => room.id === id) || missing() }
+export async function createRoom(input) {
+  await wait()
+  const room = { ...input, id: crypto.randomUUID(), itemCount: 0, storageCount: 0 }
+  saveRows(ROOMS, [...readRows(ROOMS), room])
+  return room
+}
+export async function updateRoom(id, input) {
+  await wait()
+  const rooms = readRows(ROOMS)
+  const index = rooms.findIndex((room) => room.id === id)
+  if (index < 0) missing()
+  rooms[index] = { ...rooms[index], ...input }
+  saveRows(ROOMS, rooms)
+  return rooms[index]
+}
+export async function deleteRoom(id) {
+  await wait()
+  saveRows(ROOMS, readRows(ROOMS).filter((room) => room.id !== id))
+  saveRows(ITEMS, readRows(ITEMS).filter((item) => item.roomId !== id))
+}
+export async function listCategories() {
+  return categories
+}
+export async function listItems(roomId, filters = {}) {
+  await wait()
+  return readRows(ITEMS).filter((item) => item.roomId === roomId)
+    .filter((item) => !filters.q || item.name.toLowerCase().includes(filters.q.toLowerCase()))
+    .filter((item) => !filters.type || filters.type === 'all' || item.isStorageUnit === (filters.type === 'storage'))
+    .filter((item) => !filters.categories || filters.categories.split(',').includes(item.category))
+}
+export async function getItem(id) {
+  const item = readRows(ITEMS).find((entry) => entry.id === id) || missing()
+  return { ...item, storedCount: readRows(ITEMS).filter((entry) => entry.parentStorageId === id).length }
+}
+export async function createItem(roomId, input) {
+  await wait()
+  const item = { ...input, id: crypto.randomUUID(), roomId, storedCount: 0 }
+  saveRows(ITEMS, [...readRows(ITEMS), item])
+  return item
+}
+export async function updateItem(id, input) {
+  await wait()
+  const items = readRows(ITEMS)
+  const index = items.findIndex((item) => item.id === id)
+  if (index < 0) missing()
+  items[index] = { ...items[index], ...input }
+  saveRows(ITEMS, items)
+  return items[index]
+}
+export async function getContents(id) {
+  const items = readRows(ITEMS).filter((item) => item.parentStorageId === id)
+  const bytes = new TextEncoder().encode(items.map((item) => `${item.id}:${item.updatedAt || ''}`).sort().join('|'))
+  const hash = await crypto.subtle.digest('SHA-256', bytes)
+  return { items, contentsVersion: [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, '0')).join('') }
+}
+export async function moveItem(id, { targetRoomId, includeContents, contentsVersion }) {
+  const items = readRows(ITEMS)
+  const index = items.findIndex((item) => item.id === id)
+  if (index < 0) missing()
+  const currentContents = await getContents(id)
+  if (currentContents.items.length && (typeof includeContents !== 'boolean' || contentsVersion !== currentContents.contentsVersion)) {
+    throw new Error('Storage contents changed. Review the items and confirm again.')
   }
-  localStorage.setItem(KEY, JSON.stringify(seed))
-  return seed
-}
-
-function write(rows) {
-  localStorage.setItem(KEY, JSON.stringify(rows))
-  return rows
-}
-
-export async function listSightings() {
-  await delay()
-  return read().slice().sort((a, b) => b.reported_at.localeCompare(a.reported_at))
-}
-
-export async function getSighting(id) {
-  await delay()
-  const found = read().find((row) => String(row.id) === String(id))
-  if (!found) throw new Error('Not found')
-  return found
-}
-
-export async function createSighting(input) {
-  await delay()
-  const created = {
-    ...input,
-    id: crypto.randomUUID(),
-    reported_at: new Date().toISOString(),
+  items[index] = { ...items[index], roomId: targetRoomId, parentStorageId: null }
+  for (const child of items.filter((item) => item.parentStorageId === id)) {
+    if (includeContents) child.roomId = targetRoomId
+    else child.parentStorageId = null
   }
-  write([...read(), created])
-  return created
+  saveRows(ITEMS, items)
+  return items[index]
 }
-
-export async function updateSighting(id, input) {
-  await delay()
-  const rows = read()
-  const index = rows.findIndex((row) => String(row.id) === String(id))
-  if (index === -1) throw new Error('Not found')
-  rows[index] = { ...rows[index], ...input }
-  write(rows)
-  return rows[index]
+export async function deleteItem(id, { includeContents, contentsVersion } = {}) {
+  const items = readRows(ITEMS)
+  const currentContents = await getContents(id)
+  if (currentContents.items.length && (typeof includeContents !== 'boolean' || contentsVersion !== currentContents.contentsVersion)) {
+    throw new Error('Storage contents changed. Review the items and confirm again.')
+  }
+  saveRows(ITEMS, items.filter((item) => item.id !== id && (item.parentStorageId !== id || !includeContents))
+    .map((item) => item.parentStorageId === id ? { ...item, parentStorageId: null } : item))
 }
-
-export async function deleteSighting(id) {
-  await delay()
-  write(read().filter((row) => String(row.id) !== String(id)))
+export async function getLayout(roomId) {
+  const room = await getRoom(roomId)
+  return readRows(LAYOUTS).find((layout) => layout.roomId === roomId) ||
+    { roomId, widthCm: room.widthCm ?? null, depthCm: room.depthCm ?? null, revision: 0, items: [] }
 }
+export async function saveLayout(roomId, input) {
+  const layouts = readRows(LAYOUTS)
+  const current = await getLayout(roomId)
+  if (current.revision !== input.revision) throw new Error('Layout changed; reload first')
+  const next = { ...current, ...input, revision: current.revision + 1 }
+  saveRows(LAYOUTS, [...layouts.filter((layout) => layout.roomId !== roomId), next])
+  return next
+}
+export async function uploadPhoto() { throw new Error('Photo uploads require the real API') }
+export async function getPhoto() { throw new Error('Photo downloads require the real API') }
+export async function deletePhoto() { throw new Error('Photo deletion requires the real API') }

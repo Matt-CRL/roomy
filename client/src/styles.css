@@ -8,7 +8,7 @@
   from {
     opacity: 0;
     transform: translate(
-        var(--item-origin-x, 0px),
+      var(--item-origin-x, 0px),
         var(--item-origin-y, 18px)
       )
       scale(var(--item-origin-scale, 0.7));
@@ -22,6 +22,57 @@
 
 .item-focus-dialog {
   animation: item-focus-in 320ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+}
+
+.tilt-effect {
+  position: relative;
+  overflow: visible;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  transition-property: transform, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 0.8, 0.24, 1);
+  will-change: transform;
+}
+
+.tilt-effect::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(
+      circle at var(--tilt-glow-x, 50%) var(--tilt-glow-y, 50%),
+      rgb(255 178 122 / 14%) 0%,
+      rgb(255 127 50 / 6%) 24%,
+      transparent 52%
+    ),
+    linear-gradient(
+      var(--tilt-glare-angle, 135deg),
+      transparent 34%,
+      rgb(255 178 122 / 0%) 42%,
+      rgb(255 178 122 / 8%) 50%,
+      rgb(255 178 122 / 0%) 58%,
+      transparent 66%
+    );
+  content: '';
+  mix-blend-mode: screen;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease-out;
+}
+
+.tilt-effect > * {
+  position: relative;
+  z-index: 2;
+}
+
+.tilt-effect-active::after {
+  opacity: 1;
+}
+
+.tilt-effect-disabled,
+.card-tilt-disabled {
+  transform: none !important;
 }
 
 .inventory-sidebar {
@@ -111,6 +162,18 @@
   transition-timing-function: ease;
 }
 
+.theme-transition {
+  transition-property: background-color, color;
+  transition-duration: 280ms;
+  transition-timing-function: ease;
+}
+
+.auth-theme-surface {
+  transition-property: border-color, color, fill, stroke;
+  transition-duration: 280ms;
+  transition-timing-function: ease;
+}
+
 .theme-transition .theme-switch-button {
   transition-property: background-color, transform;
   transition-duration: 200ms;
@@ -126,6 +189,12 @@
     animation: none;
   }
 
+  .tilt-effect,
+  .tilt-effect:hover {
+    transition: none;
+    transform: none;
+  }
+
   .inventory-sidebar {
     animation: none;
   }
@@ -137,6 +206,7 @@
   .inventory-main-recentering {
     animation: none;
   }
+
 }
 
 /* Night mode tokens from project-design-system.pdf. */
@@ -153,7 +223,7 @@
   top: -180px;
   left: 0;
   width: 100vw;
-  height: 850px;
+  height: 640px;
   background:
     linear-gradient(
       to bottom,
@@ -162,14 +232,27 @@
       rgb(12 9 32 / 18%) 72%,
       rgb(12 9 32 / 72%) 100%
     ),
-    radial-gradient(
-      ellipse 95% 70% at 50% 0%,
-      rgb(255 178 122 / 55%) 0%,
-      rgb(255 127 50 / 22%) 42%,
+    linear-gradient(
+      to bottom,
+      rgb(255 178 122 / 72%) 0%,
+      rgb(255 127 50 / 32%) 30%,
       transparent 82%
     );
   filter: blur(18px);
   pointer-events: none;
+}
+
+.room-preview-grid {
+  background-image:
+    linear-gradient(to right, rgb(226 232 240 / 60%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(226 232 240 / 60%) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.night-mode .room-preview-grid {
+  background-image:
+    linear-gradient(to right, rgb(203 213 225 / 18%) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(203 213 225 / 18%) 1px, transparent 1px);
 }
 
 .night-mode-bottom-gradient {
@@ -188,12 +271,58 @@
   pointer-events: none;
 }
 
+.auth-night-left-gradient {
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 52vh;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(12 9 32 / 18%) 42%,
+    rgb(5 4 16 / 88%) 100%
+  );
+  pointer-events: none;
+}
+
+.auth-night-left-lamp-glow {
+  position: absolute;
+  z-index: 0;
+  top: -180px;
+  right: -6%;
+  left: -6%;
+  width: 112%;
+  height: 640px;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 48%,
+      rgb(12 9 32 / 18%) 72%,
+      rgb(12 9 32 / 72%) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(255 178 122 / 72%) 0%,
+      rgb(255 127 50 / 32%) 30%,
+      transparent 82%
+    );
+  filter: blur(18px);
+  pointer-events: none;
+}
+
 .night-mode > main {
   position: relative;
   z-index: 1;
 }
 
 .night-mode .bg-white {
+  background-color: #24223a;
+}
+
+.night-mode .night-form-surface {
   background-color: #24223a;
 }
 
@@ -269,6 +398,11 @@
   border-color: #514c69;
 }
 
+.night-mode .item-details-list,
+.night-mode .item-details-list > :not(:first-child) {
+  border-color: #faf6ef;
+}
+
 .night-mode .border-orange-400 {
   border-color: #ffb27a;
 }
@@ -337,6 +471,30 @@
   color: #faf6ef;
 }
 
+.night-mode .auth-form-input {
+  background-color: #0c0920;
+  border-color: #817c95;
+  color: #faf6ef;
+}
+
+.night-mode input[type='number'] {
+  color-scheme: dark;
+}
+
+.room-dimension-input {
+  box-sizing: border-box;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  line-height: 1.25rem;
+  overflow: hidden;
+}
+
+.room-dimension-input::-webkit-inner-spin-button,
+.room-dimension-input::-webkit-outer-spin-button {
+  margin: 0;
+}
+
+
 .night-mode main button.bg-white {
   background-color: #0c0920;
   border-color: #817c95;
@@ -385,6 +543,36 @@
   color: #0c0920;
 }
 
+.night-mode .night-dropdown-menu .hover\:bg-orange-500:hover,
+.night-mode .night-dropdown-menu .focus-visible\:bg-orange-500:focus-visible {
+  background-color: #ff7f32;
+  color: #0c0920;
+}
+
+.roomy-dropdown-trigger:focus {
+  border-color: #f97316 !important;
+  --tw-ring-color: #f97316;
+  box-shadow: 0 0 0 1px #f97316;
+}
+
+.roomy-dropdown-option:hover,
+.roomy-dropdown-option:focus-visible {
+  background-color: #f97316;
+  color: #ffffff;
+}
+
+.night-mode .roomy-dropdown-trigger:focus {
+  border-color: #ff7f32 !important;
+  --tw-ring-color: #ff7f32;
+  box-shadow: 0 0 0 1px #ff7f32;
+}
+
+.night-mode .roomy-dropdown-option:hover,
+.night-mode .roomy-dropdown-option:focus-visible {
+  background-color: #ff7f32;
+  color: #0c0920;
+}
+
 .focus\:border-orange-500:focus {
   border-color: #ff7f32;
 }
@@ -408,5 +596,5 @@
 }
 
 .night-mode .bg-orange-500\/70 {
-  background-color: rgb(255 127 50 / 70%);
+  background-color: rgb(249 115 22 / 70%);
 }

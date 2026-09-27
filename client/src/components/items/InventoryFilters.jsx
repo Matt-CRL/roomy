@@ -1,53 +1,6 @@
-const categoryGroups = [
-  {
-    label: 'Bedroom',
-    categories: ['Furniture', 'Bedding', 'Clothing', 'Personal items', 'Books & media'],
-  },
-  {
-    label: 'Living room',
-    categories: ['Furniture', 'Electronics', 'Decor', 'Books & media', 'Storage'],
-  },
-  {
-    label: 'Kitchen',
-    categories: ['Appliances', 'Cookware', 'Dinnerware', 'Utensils', 'Food storage'],
-  },
-  {
-    label: 'Bathroom',
-    categories: ['Toiletries', 'Towels', 'Personal care', 'Bathroom storage', 'Cleaning supplies'],
-  },
-  {
-    label: 'General',
-    categories: ['Documents', 'Tools', 'Cables', 'Miscellaneous'],
-  },
-]
+import { categoryGroups } from '../../data/categoryOptions'
 
-function FilterGroup({ label, options }) {
-  return (
-    <fieldset className="border-t border-slate-200 pt-3">
-      <legend className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-        {label}
-      </legend>
-
-      <div className="mt-1 space-y-2">
-        {options.map((option) => (
-          <label
-            key={option}
-            className="flex items-center gap-2 text-xs text-slate-600"
-          >
-            <input
-              type="checkbox"
-              className="h-3 w-3 accent-orange-500"
-              defaultChecked={option === 'In room' || option === 'All items'}
-            />
-            {option}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
-
-function CategoryFilterGroup() {
+function CategoryFilterGroup({ value, onChange }) {
   return (
     <fieldset className="border-t border-slate-200 pt-3">
       <legend className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
@@ -70,6 +23,10 @@ function CategoryFilterGroup() {
                   <input
                     type="checkbox"
                     className="h-3 w-3 accent-orange-500"
+                    checked={value.categories.includes(category)}
+                    onChange={() => onChange({ ...value, categories: value.categories.includes(category)
+                      ? value.categories.filter((entry) => entry !== category)
+                      : [...value.categories, category] })}
                   />
                   {category}
                 </label>
@@ -82,7 +39,7 @@ function CategoryFilterGroup() {
   )
 }
 
-export default function InventoryFilters() {
+export default function InventoryFilters({ value, onChange }) {
   return (
     <aside className="border border-slate-300 bg-white p-4">
       <h2 className="text-sm font-semibold text-slate-900">
@@ -90,12 +47,19 @@ export default function InventoryFilters() {
       </h2>
 
       <div className="mt-4 space-y-3">
-        <FilterGroup
-          label="Item type"
-          options={['All items', 'Regular items', 'Storage units']}
-        />
+        <fieldset className="border-t border-slate-200 pt-3">
+          <legend className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">Item type</legend>
+          <div className="mt-1 space-y-2">
+            {[['all', 'All items'], ['item', 'Regular items'], ['storage', 'Storage units']].map(([type, label]) => (
+              <label key={type} className="flex items-center gap-2 text-xs text-slate-600">
+                <input type="radio" name="item-type" checked={value.type === type} onChange={() => onChange({ ...value, type })} className="h-3 w-3 accent-orange-500" />
+                {label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-        <CategoryFilterGroup />
+        <CategoryFilterGroup value={value} onChange={onChange} />
       </div>
     </aside>
   )
