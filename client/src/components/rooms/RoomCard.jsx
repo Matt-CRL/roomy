@@ -30,15 +30,22 @@ export default function RoomCard({
     }
   }
 
+  function handlePointerUp(event) {
+    if (event.pointerType === 'touch' && !event.target.closest('button')) {
+      onEnter?.(room)
+    }
+  }
+
   return (
     <article
       role="button"
       tabIndex={0}
-      aria-label={`Double-click to enter ${room.name}`}
+      aria-label={`Double-click on desktop or tap on mobile to enter ${room.name}`}
       onDoubleClick={() => onEnter?.(room)}
+      onPointerUp={handlePointerUp}
       onKeyDown={handleKeyDown}
-      title={`Double-click to enter ${room.name}`}
-      className="group relative select-none rounded-sm border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-within:border-orange-500 focus-within:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+      title={`Double-click on desktop or tap on mobile to enter ${room.name}`}
+      className="group relative select-none touch-manipulation rounded-sm border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-within:border-orange-500 focus-within:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
     >
       <div className="relative h-28 overflow-hidden rounded-t-sm bg-slate-200">
         {room.imageUrl && (

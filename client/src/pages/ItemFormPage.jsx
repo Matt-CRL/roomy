@@ -1,32 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../components/common/Button'
 import AppNavbar from '../components/layout/AppNavbar'
+import { categoryGroups } from '../data/categoryOptions'
+import { getPhotoAdjustment, getPhotoImageStyle } from '../data/photoDisplay'
 
 const ITEM_NAME_MAX_LENGTH = 80
 const ITEM_NOTES_MAX_LENGTH = 500
-
-const categoryGroups = [
-  {
-    label: 'Bedroom',
-    categories: ['Furniture', 'Bedding', 'Clothing', 'Personal items', 'Books & media'],
-  },
-  {
-    label: 'Living room',
-    categories: ['Furniture', 'Electronics', 'Decor', 'Books & media', 'Storage'],
-  },
-  {
-    label: 'Kitchen',
-    categories: ['Appliances', 'Cookware', 'Dinnerware', 'Utensils', 'Food storage'],
-  },
-  {
-    label: 'Bathroom',
-    categories: ['Toiletries', 'Towels', 'Personal care', 'Bathroom storage', 'Cleaning supplies'],
-  },
-  {
-    label: 'General',
-    categories: ['Documents', 'Tools', 'Cables', 'Miscellaneous'],
-  },
-]
 
 function FormDropdown({
   value,
@@ -39,6 +18,9 @@ function FormDropdown({
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
   const optionGroups = groups ?? [{ label: null, categories: options }]
+  const optionValue = (option) => typeof option === 'string' ? option : option.value
+  const optionLabel = (option) => typeof option === 'string' ? option : option.label
+  const selected = optionGroups.flatMap((group) => group.categories).find((option) => optionValue(option) === value)
 
   useEffect(() => {
     function handleOutsideClick(event) {
@@ -65,13 +47,13 @@ function FormDropdown({
             setIsOpen(false)
           }
         }}
-        className={`night-form-control flex min-h-11 w-full items-center justify-between border border-slate-300 px-3 text-left text-xs font-normal outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 ${
+        className={`roomy-dropdown-trigger night-form-control flex min-h-11 w-full items-center justify-between border border-slate-300 px-3 text-left text-xs font-normal outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 ${
           disabled
             ? 'cursor-not-allowed bg-slate-100 text-slate-400'
             : 'bg-white text-slate-900'
         }`}
       >
-        <span>{value}</span>
+        <span>{selected ? optionLabel(selected) : value}</span>
         <svg
           aria-hidden="true"
           viewBox="0 0 24 24"
@@ -104,17 +86,17 @@ function FormDropdown({
 
               {group.categories.map((option) => (
                 <button
-                  key={`${group.label ?? 'options'}-${option}`}
+                  key={`${group.label ?? 'options'}-${optionValue(option)}`}
                   type="button"
                   role="option"
-                  aria-selected={value === option}
+                  aria-selected={value === optionValue(option)}
                   onClick={() => {
-                    onChange(option)
+                    onChange(optionValue(option))
                     setIsOpen(false)
                   }}
-                  className="block min-h-9 w-full px-3 text-left text-xs text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:bg-orange-50 focus-visible:outline-none"
+                  className="roomy-dropdown-option block min-h-9 w-full px-3 text-left text-xs text-slate-700 transition-colors focus-visible:outline-none"
                 >
-                  {option}
+                  {optionLabel(option)}
                 </button>
               ))}
             </div>
@@ -135,9 +117,15 @@ export default function ItemFormPage({
   rooms = [],
   onDeleteItem,
   onMoveItem,
+  storageOptions,
+  allowPhoto = false,
+  onDeletePhoto,
+  onSignOut,
+  displayName,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
   const isEditMode = Boolean(item)
+  const initialPhotoAdjustment = getPhotoAdjustment(item)
   const otherRoomOptions = rooms
     .filter((roomOption) => roomOption.id !== room?.id)
     .map((roomOption) => roomOption.name)
@@ -145,13 +133,36 @@ export default function ItemFormPage({
   const [form, setForm] = useState({
     name: item?.name ?? '',
     category: item?.category ?? 'Furniture',
-    storedInside: item?.storedInside ?? 'Not stored',
+    storedInside: item?.parentStorageId ?? item?.storedInside ?? 'Not stored',
     notes: item?.notes ?? '',
-    width: item?.width > 0 ? item.width : '',
-    depth: item?.depth > 0 ? item.depth : '',
+    width: (item?.widthCm ?? item?.width) > 0 ? (item.widthCm ?? item.width) : '',
+    depth: (item?.depthCm ?? item?.depth) > 0 ? (item.depthCm ?? item.depth) : '',
     isStorageUnit: item?.isStorageUnit ?? false,
+    photoPositionX: initialPhotoAdjustment.x,
+    photoPositionY: initialPhotoAdjustment.y,
+    photoZoom: initialPhotoAdjustment.zoom,
   })
   const [moveToRoom, setMoveToRoom] = useState(otherRoomOptions[0] ?? '')
+  const [actionError, setActionError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [busyAction, setBusyAction] = useState('')
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState(item?.imageUrl ?? null)
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
+  const photoInputRef = useRef(null)
+  const photoDragRef = useRef(null)
+
+  useEffect(() => {
+    if (!photoFile) {
+      setPhotoPreviewUrl(item?.imageUrl ?? null)
+      return undefined
+    }
+
+    const previewUrl = URL.createObjectURL(photoFile)
+    setPhotoPreviewUrl(previewUrl)
+    return () => URL.revokeObjectURL(previewUrl)
+  }, [item?.imageUrl, photoFile])
 
   function updateField(field, value) {
     setForm((currentForm) => ({
@@ -160,22 +171,76 @@ export default function ItemFormPage({
     }))
   }
 
-  function handleSubmit(event) {
+  function startPhotoDrag(event) {
+    if (!photoPreviewUrl) return
+    const frame = event.currentTarget
+    frame.setPointerCapture(event.pointerId)
+    photoDragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startPositionX: form.photoPositionX,
+      startPositionY: form.photoPositionY,
+      frameWidth: frame.clientWidth,
+      frameHeight: frame.clientHeight,
+    }
+    setIsDraggingPhoto(true)
+  }
+
+  function movePhoto(event) {
+    const drag = photoDragRef.current
+    if (!drag) return
+    const nextX = Math.min(100, Math.max(0,
+      drag.startPositionX - ((event.clientX - drag.startX) / drag.frameWidth) * 100,
+    ))
+    const nextY = Math.min(100, Math.max(0,
+      drag.startPositionY - ((event.clientY - drag.startY) / drag.frameHeight) * 100,
+    ))
+    setForm((currentForm) => ({
+      ...currentForm,
+      photoPositionX: nextX,
+      photoPositionY: nextY,
+    }))
+  }
+
+  function endPhotoDrag(event) {
+    if (photoDragRef.current && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    photoDragRef.current = null
+    setIsDraggingPhoto(false)
+  }
+
+  async function handleSubmit(event) {
     event.preventDefault()
 
     if (!form.name.trim()) return
-
-    onSave?.({ ...form, room: roomName, roomId: room?.id })
+    setBusy(true)
+    setBusyAction('save')
+    setActionError('')
+    try { await onSave?.({ ...form, room: roomName, roomId: room?.id, photoFile }) }
+    catch (error) { setActionError(error.message) }
+    finally { setBusy(false); setBusyAction('') }
   }
 
-  function handleMoveItem() {
-    onMoveItem?.(item?.id, moveToRoom)
+  async function handleMoveItem() {
+    setBusy(true)
+    setBusyAction('move')
+    setActionError('')
+    try { await onMoveItem?.(item?.id, moveToRoom) }
+    catch (error) { setActionError(error.message) }
+    finally { setBusy(false); setBusyAction('') }
   }
 
-  function handleDeleteItem() {
-    if (window.confirm(`Delete ${item?.name ?? 'this item'} permanently?`)) {
-      onDeleteItem?.(item?.id)
+  async function confirmDeleteItem() {
+    setBusy(true)
+    setBusyAction('delete')
+    setActionError('')
+    try {
+      await onDeleteItem?.(item?.id)
+      setIsDeleteConfirmOpen(false)
     }
+    catch (error) { setActionError(error.message) }
+    finally { setBusy(false); setBusyAction('') }
   }
 
   function handleDimensionChange(field, value) {
@@ -196,11 +261,16 @@ export default function ItemFormPage({
   const previewScale = Math.min(180 / widthInCm, 120 / depthInCm)
   const previewWidth = Math.max(48, Math.round(widthInCm * previewScale))
   const previewHeight = Math.max(40, Math.round(depthInCm * previewScale))
+  const previewStatus = form.isStorageUnit
+    ? '0 inside'
+    : form.storedInside && form.storedInside !== 'Not stored'
+      ? 'Stored'
+      : 'Unstored'
 
   return (
     <main className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-screen-2xl">
-        <AppNavbar />
+        <AppNavbar onSignOut={onSignOut} displayName={displayName} />
 
         <header className="flex flex-col gap-5 pt-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -247,30 +317,156 @@ export default function ItemFormPage({
               Cancel
             </Button>
 
-            <Button variant="primary" type="submit" form="item-form">
-              Save
+            <Button variant="primary" type="submit" form="item-form" disabled={busy}>
+              {busyAction === 'save' ? 'Saving…' : 'Save'}
             </Button>
           </div>
         </header>
+
+        {actionError && <p role="alert" className="mt-4 border border-red-300 bg-white p-3 text-sm text-red-700">{actionError}</p>}
 
         <div className="mt-8 grid gap-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.9fr)]">
           <form
             id="item-form"
             onSubmit={handleSubmit}
-            className="border border-slate-300 bg-white p-5"
+            className="night-form-surface border border-slate-300 bg-white p-5"
           >
-            <label className="block text-xs font-semibold text-slate-900">
-              Item photo
-              <button
-                type="button"
-                className="night-secondary-surface mt-2 flex min-h-28 w-full flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-900 transition-colors hover:border-orange-400 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
-              >
-                <span className="font-semibold">+ Add optional reference photo</span>
-                <span className="mt-2 text-[10px] font-normal text-slate-500">
-                  Used in inventory only
-                </span>
-              </button>
-            </label>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="flex flex-col text-xs text-slate-900">
+                <h2 className="font-semibold">Item photo</h2>
+                <p className="mt-1 text-[10px] font-normal text-slate-500">
+                  Upload a photo for inventory reference only.
+                </p>
+                <p className="mt-4 text-[10px] font-semibold text-slate-600">
+                  Reference photo
+                </p>
+                <button
+                  type="button"
+                  disabled={!allowPhoto}
+                  onClick={() => photoInputRef.current?.click()}
+                  className="night-secondary-surface mt-2 flex h-[16rem] w-full flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-900 transition-colors hover:border-orange-400 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+                >
+                  {item?.imageUrl && !photoFile && <img src={item.imageUrl} alt="Current item" className="mb-2 max-h-32 max-w-full object-contain" />}
+                  <span className="font-semibold">{photoFile ? photoFile.name : allowPhoto ? item?.hasPhoto ? 'Replace reference photo' : '+ Add optional reference photo' : 'Photos available in real mode'}</span>
+                  <span className="mt-2 text-[10px] font-normal text-slate-500">
+                    Used in inventory only
+                  </span>
+                </button>
+                <input ref={photoInputRef} type="file" aria-label="Choose item photo" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  if (file.size > 5 * 1024 * 1024) { setActionError('Use an image smaller than 5 MB.'); return }
+                  setPhotoFile(file)
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    photoPositionX: 50,
+                    photoPositionY: 50,
+                    photoZoom: 1,
+                  }))
+                  setActionError('')
+                }} />
+                {allowPhoto && item?.hasPhoto && <button type="button" onClick={async () => {
+                  if (!window.confirm('Remove this item photo?')) return
+                  setBusy(true)
+                  setBusyAction('photo')
+                  setActionError('')
+                  try { await onDeletePhoto?.(item.id) }
+                  catch (error) { setActionError(error.message) }
+                  finally { setBusy(false); setBusyAction('') }
+                }} disabled={busy} className="mt-3 self-start text-xs text-red-600 hover:underline disabled:cursor-not-allowed disabled:opacity-50">{busyAction === 'photo' ? 'Removing…' : 'Remove photo'}</button>}
+              </div>
+
+            <section className="border-t border-slate-200 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <h2 className="text-xs font-semibold text-slate-900">
+                Adjust photo
+              </h2>
+
+              <p className="mt-1 text-[10px] text-slate-500">
+                Drag the image to choose what appears in the inventory card.
+              </p>
+
+              <p className="mt-4 text-[10px] font-semibold leading-4 text-slate-600 lg:mt-3">
+                Item card preview
+              </p>
+
+              <div className="mt-2 h-[16rem] overflow-hidden border border-slate-300 bg-slate-200">
+                <div
+                  className={`relative flex h-40 touch-none items-center justify-center overflow-hidden border-b border-slate-300 bg-slate-200 ${
+                    photoPreviewUrl ? isDraggingPhoto ? 'cursor-grabbing' : 'cursor-grab' : ''
+                  }`}
+                  onPointerDown={startPhotoDrag}
+                  onPointerMove={movePhoto}
+                  onPointerUp={endPhotoDrag}
+                  onPointerCancel={endPhotoDrag}
+                  role={photoPreviewUrl ? 'application' : undefined}
+                  aria-label={photoPreviewUrl ? 'Drag to adjust the inventory photo' : undefined}
+                >
+                  {photoPreviewUrl ? (
+                    <img
+                      src={photoPreviewUrl}
+                      alt="Inventory card preview"
+                      draggable="false"
+                      style={getPhotoImageStyle({
+                        photoPositionX: form.photoPositionX,
+                        photoPositionY: form.photoPositionY,
+                        photoZoom: form.photoZoom,
+                      })}
+                      className="pointer-events-none h-full w-full select-none"
+                    />
+                  ) : (
+                    <span className="px-4 text-center text-[10px] text-slate-500">
+                      Add a photo to adjust its card display.
+                    </span>
+                  )}
+                {photoPreviewUrl && (
+                  <span className="pointer-events-none absolute bottom-2 right-2 w-max bg-slate-950/60 px-2 py-1 text-[10px] text-white">
+                    Drag to reposition
+                  </span>
+                )}
+                </div>
+                <div className="bg-white p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-semibold text-slate-900">
+                      {form.name || 'Item name'}
+                    </p>
+                    <p className="mt-0.5 truncate text-[10px] text-slate-500">{form.category}</p>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    <span className="inline-flex border border-slate-300 px-2 py-1 text-[10px] text-slate-700">
+                      {previewStatus}
+                    </span>
+                    <span aria-hidden="true" className="text-lg leading-none text-slate-600">⋯</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center gap-3">
+                <label className="flex min-w-0 flex-1 items-center gap-3 text-[10px] font-semibold text-slate-600">
+                  <span>Zoom</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="2"
+                    step="0.05"
+                    value={form.photoZoom}
+                    onChange={(event) => updateField('photoZoom', Number(event.target.value))}
+                    disabled={!photoPreviewUrl}
+                    aria-label="Photo zoom"
+                    className="min-w-0 flex-1 accent-orange-500"
+                  />
+                  <span className="w-8 text-right font-normal">{Math.round(form.photoZoom * 100)}%</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setForm((currentForm) => ({ ...currentForm, photoPositionX: 50, photoPositionY: 50, photoZoom: 1 }))}
+                  disabled={!photoPreviewUrl}
+                  className="text-[10px] font-semibold text-slate-600 underline-offset-2 hover:text-orange-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reset
+                </button>
+              </div>
+            </section>
+            </div>
 
             <label className="mt-5 block text-xs font-semibold text-slate-900">
               Item name
@@ -323,7 +519,7 @@ export default function ItemFormPage({
                   <FormDropdown
                     value={form.storedInside}
                     onChange={(storedInside) => updateField('storedInside', storedInside)}
-                    options={['Not stored', 'Wardrobe', 'Bedside drawer', 'Under-bed box']}
+                    options={storageOptions ? [{ value: 'Not stored', label: 'Not stored' }, ...storageOptions] : ['Not stored', 'Wardrobe', 'Bedside drawer', 'Under-bed box']}
                     ariaLabel="Stored inside"
                   />
                 </label>
@@ -385,9 +581,6 @@ export default function ItemFormPage({
 
               </div>
 
-              <p className="mt-3 text-[10px] text-slate-500">
-                Approximate values only; no exact real-world scale.
-              </p>
             </fieldset>
           </form>
 
@@ -438,8 +631,9 @@ export default function ItemFormPage({
                       variant="secondary"
                       type="button"
                       onClick={handleMoveItem}
+                      disabled={busy || !moveToRoom}
                     >
-                      Move item
+                      {busyAction === 'move' ? 'Moving…' : 'Move item'}
                     </Button>
                   </div>
                 </section>
@@ -457,7 +651,8 @@ export default function ItemFormPage({
                     <Button
                       variant="danger"
                       type="button"
-                      onClick={handleDeleteItem}
+                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      disabled={busy}
                     >
                       Delete item
                     </Button>
@@ -468,6 +663,42 @@ export default function ItemFormPage({
           </aside>
         </div>
       </div>
+
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-item-confirm-title"
+            className="night-form-surface w-full max-w-md border border-slate-300 bg-white p-6 shadow-2xl"
+          >
+            <h2 id="delete-item-confirm-title" className="text-lg font-semibold text-slate-900">
+              Delete {item?.name || 'this item'}?
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              This permanently deletes the item. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="tertiary"
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                disabled={busy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                type="button"
+                onClick={confirmDeleteItem}
+                disabled={busy}
+              >
+                {busyAction === 'delete' ? 'Deleting…' : 'Delete item'}
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

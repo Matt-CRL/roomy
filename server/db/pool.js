@@ -1,4 +1,5 @@
 import pg from 'pg'
+import { readFileSync } from 'node:fs'
 
 // Fail at boot with one clear line, rather than with a mystery 500 an hour
 // later. The commonest deployment mistake is setting a variable in .env on your
@@ -11,26 +12,24 @@ if (!process.env.DATABASE_URL) {
   process.exit(1)
 }
 
-// A local PostgreSQL has no TLS configured. Every managed host requires it and
-// presents a certificate chain Node does not trust out of the box, which is why
-// rejectUnauthorized is false: the connection is still encrypted, it is just not
-// verifying who is on the other end. That is the standard tradeoff for a
-// student project. If your host publishes a CA certificate, pass it as
-// ssl: { ca: readFileSync('ca.pem') } instead and say so in your journal.
-const isLocal =
-  process.env.DATABASE_URL.includes('localhost') ||
-  process.env.DATABASE_URL.includes('127.0.0.1')
+export function createPool(connectionString) {
+  const databaseUrl = new URL(connectionString)
+  const host = databaseUrl.hostname
+  const isLocal = host === 'localhost' || host === '127.0.0.1'
+  // pg-connection-string may override the ssl object when sslmode is present.
+  databaseUrl.searchParams.delete('sslmode')
+  const caFile = process.env.DATABASE_SSL_CA_FILE || databaseUrl.searchParams.get('sslrootcert')
+  databaseUrl.searchParams.delete('sslrootcert')
+  const ca = !isLocal && caFile ? readFileSync(caFile, 'utf8') : undefined
+  const connectionPool = new pg.Pool({
+    connectionString: databaseUrl.toString(),
+    ssl: isLocal ? false : { rejectUnauthorized: true, ...(ca && { ca }) },
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 5_000,
+  })
+  connectionPool.on('error', (error) => console.error('Unexpected database pool error:', error.message))
+  return connectionPool
+}
 
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: isLocal ? false : { rejectUnauthorized: false },
-  max: 5,                          // free tiers allow far fewer than you think
-  idleTimeoutMillis: 10_000,       // hand connections back quickly
-  connectionTimeoutMillis: 5_000,  // fail fast rather than hanging the request
-})
-
-// A pool whose server goes away should say so once, loudly, not take the
-// process down.
-pool.on('error', (error) => {
-  console.error('Unexpected database pool error:', error.message)
-})
+export const pool = createPool(process.env.DATABASE_URL)

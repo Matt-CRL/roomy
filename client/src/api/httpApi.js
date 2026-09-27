@@ -1,14 +1,20 @@
-// The real client. Every function here talks to YOUR Express API.
-//
-// This is the file that matters for your finals project. mockApi.js exists so
-// you can build the interface before this has anywhere to point.
+// Roomy requests use the current Supabase session and the Express API.
+
+import { supabase } from './supabase.js'
 
 const BASE = import.meta.env.VITE_API_BASE_URL || ''
 
-async function request(path, options) {
+async function request(path, options = {}) {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { data, error } = await supabase.auth.getSession()
+  if (error || !data.session) throw new Error('Sign in to continue')
   const response = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      authorization: `Bearer ${data.session.access_token}`,
+      ...(options.body && !options.raw ? { 'content-type': 'application/json' } : {}),
+      ...options.headers,
+    },
   })
 
   if (!response.ok) {
@@ -23,18 +29,32 @@ async function request(path, options) {
     throw new Error(message)
   }
 
+  if (options.blob) return response.blob()
   return response.status === 204 ? null : response.json()
 }
 
-export const listSightings = () => request('/api/sightings')
+const json = (method, body) => ({ method, body: JSON.stringify(body) })
 
-export const getSighting = (id) => request(`/api/sightings/${id}`)
-
-export const createSighting = (input) =>
-  request('/api/sightings', { method: 'POST', body: JSON.stringify(input) })
-
-export const updateSighting = (id, input) =>
-  request(`/api/sightings/${id}`, { method: 'PUT', body: JSON.stringify(input) })
-
-export const deleteSighting = (id) =>
-  request(`/api/sightings/${id}`, { method: 'DELETE' })
+export const listRooms = () => request('/api/rooms')
+export const getRoom = (id) => request(`/api/rooms/${id}`)
+export const createRoom = (input) => request('/api/rooms', json('POST', input))
+export const updateRoom = (id, input) => request(`/api/rooms/${id}`, json('PATCH', input))
+export const deleteRoom = (id) => request(`/api/rooms/${id}`, { method: 'DELETE' })
+export const listCategories = () => request('/api/categories')
+export const listItems = (roomId, filters = {}) => {
+  const query = new URLSearchParams(filters).toString()
+  return request(`/api/rooms/${roomId}/items${query ? `?${query}` : ''}`)
+}
+export const getItem = (id) => request(`/api/items/${id}`)
+export const createItem = (roomId, input) => request(`/api/rooms/${roomId}/items`, json('POST', input))
+export const updateItem = (id, input) => request(`/api/items/${id}`, json('PATCH', input))
+export const getContents = (id) => request(`/api/items/${id}/contents`)
+export const moveItem = (id, input) => request(`/api/items/${id}/move`, json('POST', input))
+export const deleteItem = (id, decision = {}) => request(`/api/items/${id}`, json('DELETE', decision))
+export const getLayout = (roomId) => request(`/api/rooms/${roomId}/layout`)
+export const saveLayout = (roomId, input) => request(`/api/rooms/${roomId}/layout`, json('PUT', input))
+export const uploadPhoto = (id, file) => request(`/api/items/${id}/photo`, {
+  method: 'POST', body: file, headers: { 'content-type': file.type }, raw: true,
+})
+export const getPhoto = (id) => request(`/api/items/${id}/photo`, { blob: true })
+export const deletePhoto = (id) => request(`/api/items/${id}/photo`, { method: 'DELETE' })

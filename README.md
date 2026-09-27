@@ -4,13 +4,13 @@ Roomy is a personal room inventory and approximate 2D layout-planning web
 application. It helps people record belongings, remember where items are
 stored, and organise rooms while rearranging or decorating their space.
 
-> **Current progress:** The Week 1 implementation is a working React frontend
-> demo. It currently saves room and item data in the browser, while the
-> Express API, PostgreSQL database, authentication, and deployed services are
-> planned for the next development stages.
+> **Current progress:** Demo mode still works in the browser. The Roomy Express
+> API, PostgreSQL migrations, Supabase authentication integration, private photo
+> routes, and saved planner are implemented locally. A Supabase project has not
+> been connected or tested yet; production deployment is still pending.
 
 **Live site:** Not deployed yet
-**API:** Not connected yet
+**API:** Implemented locally; live configuration pending
 **Demo video:** To be added
 
 ## What it does
@@ -22,39 +22,42 @@ basic item dimensions for future room-planning features.
 
 ## Built with
 
-### Current frontend
+### Frontend
 
 - React 18
 - Vite 6
 - Tailwind CSS 4
-- Browser `localStorage` for the current demo data
+- Browser `localStorage` for demo mode; Supabase Auth and Express API in real mode
 
-### Planned application stack
+### Backend
 
-- Node.js and Express for the API
-- PostgreSQL for persistent application data
-- Supabase Auth for user authentication
-- Vercel or another suitable host for deployment
+- Node.js 20+, Express, PostgreSQL, and `pg`
+- Supabase for PostgreSQL hosting, email/password authentication, and private photos
+- Hosting: frontend/API provider selection pending
 
-The planned backend and authentication services are not connected to the Week 1
-frontend yet.
+The real mode uses the Express API for inventory and layouts. External services
+must be configured before that mode can run.
 
 ## Setup and installation
 
 ### Requirements
 
-- Node.js 18 or newer
+- Node.js 20 or newer (tested locally with Node.js 24)
 - npm
 - Git
 
-The current demo does not require PostgreSQL, Supabase, or an API server.
+Demo mode does not require PostgreSQL, Supabase, or an API server. Real mode does.
 
 ### Clone and install
 
 ```powershell
 git clone https://github.com/Matt-CRL/roomy.git
 cd roomy\client
-npm install
+npm ci
+Copy-Item .env.example .env
+
+cd ..\server
+npm ci
 Copy-Item .env.example .env
 ```
 
@@ -67,9 +70,9 @@ and item state is held in React and persisted to the visitor’s local storage,
 so the interface can be developed and demonstrated before the real API and
 database are available.
 
-This is not the final architecture. The finals version should connect the
-frontend to the Express API, PostgreSQL, and authentication services so data is
-private to a signed-in user and available across sessions and devices.
+Set `VITE_USE_MOCK_API=true` in `client/.env` for this mode. The demo notice is
+visible; demo data is separate from any real account and is not imported
+automatically.
 
 ## Running it yourself
 
@@ -96,22 +99,77 @@ npm run build
 npm run preview
 ```
 
+### Run with Supabase and PostgreSQL
+
+1. Create a Supabase project. Enable email/password authentication and create
+   a **private** Storage bucket named `roomy-item-photos`. Keep the database
+   password and secret key out of Git.
+2. In `server/.env`, set `DATABASE_URL`, `SUPABASE_URL`,
+   `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`. Set
+   `MIGRATION_DATABASE_URL` if migrations use a separate database account.
+3. In `client/.env`, set `VITE_USE_MOCK_API=false`, `VITE_API_BASE_URL`,
+   `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`.
+4. From `server/`, run `npm run db:migrate` once. The migration runner tracks
+   applied files and does not seed or erase user data.
+5. In one terminal, run `npm run dev` from `server/`. In another, run
+   `npm run dev` from `client/`. Open `http://localhost:5173` and sign up.
+
+If Supabase requires email confirmation, use the link it emails you before
+signing in. The first real account starts with no rooms. Add a room with width
+and depth in centimeters, then add items. `/healthz` checks the API process;
+`/readyz` checks its database connection.
+
+Use a database login with only the required table permissions for the running
+API. Keep schema privileges on a separate migration login. The migration
+scripts create the tables; the old `server/db/schema.sql` and `seed.sql` are
+from the sightings template and must not be run for Roomy.
+
+After migrating with the project owner connection, one way to create the API
+login is to run the following in the Supabase SQL editor, replacing the example
+password with your own strong random value. Put that login's connection string
+in `DATABASE_URL` and the owner connection in `MIGRATION_DATABASE_URL`:
+
+```sql
+CREATE ROLE roomy_api LOGIN PASSWORD 'REPLACE_WITH_A_LONG_RANDOM_PASSWORD';
+GRANT CONNECT ON DATABASE postgres TO roomy_api;
+GRANT USAGE ON SCHEMA public TO roomy_api;
+GRANT SELECT ON roomy_categories TO roomy_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON
+  roomy_rooms, roomy_items, roomy_layouts, roomy_layout_items,
+  roomy_photo_cleanup TO roomy_api;
+```
+
+The database password, Supabase secret key, and real URLs belong only in
+ignored local `.env` files or deployment secrets. Use the connection string
+format shown by your Supabase project's database settings; its pooler and TLS
+details depend on where the API runs.
+
 ## Environment variables
 
-The current Roomy screens work without custom environment variables. The
-following variables are included for the planned API integration:
+The demo needs no secrets. The real application needs these variables:
 
 | Variable | Example value | Purpose |
 | --- | --- | --- |
-| `VITE_USE_MOCK_API` | `true` | Keeps the starter API adapter in demo mode. |
-| `VITE_API_BASE_URL` | `http://localhost:3000` | The future Express API base URL. |
+| `VITE_USE_MOCK_API` | `false` | Uses the Express API; `true` keeps browser demo mode. |
+| `VITE_API_BASE_URL` | `http://localhost:3000` | Express API base URL. |
+| `VITE_SUPABASE_URL` | `https://your-project.supabase.co` | Public Auth project URL. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_replace_me` | Public browser key. |
+| `DATABASE_URL` | `postgresql://roomy_api:password@host:5432/postgres` | Server-only PostgreSQL login. |
+| `MIGRATION_DATABASE_URL` | `postgresql://admin:password@host:5432/postgres` | Optional separate migration login. |
+| `DATABASE_SSL_CA_FILE` | `C:\path\outside-repo\supabase-ca.pem` | Optional local path to the database root certificate for verified TLS. |
+| `SUPABASE_URL` | `https://your-project.supabase.co` | Server's Auth and Storage project URL. |
+| `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_replace_me` | Server's public Auth project key. |
+| `SUPABASE_SECRET_KEY` | `sb_secret_replace_me` | Server-only key for private photo storage. |
+| `SUPABASE_PHOTO_BUCKET` | `roomy-item-photos` | Private Storage bucket name. |
+| `CORS_ORIGINS` | `http://localhost:5173` | Comma-separated allowed frontend origins. |
+| `NODE_ENV` | `development` | Runtime mode; use `production` on a host. |
+| `PORT` | `3000` | Optional local API port; hosting providers normally set it. |
 
 Values beginning with `VITE_` are compiled into the frontend and are public.
 Never put passwords, database connection strings, or private keys in them.
 
-There is currently no database setup or seed command for the Roomy data model.
-The `server/` directory still contains the template Express/PostgreSQL
-scaffold and will be replaced with Roomy endpoints in a later milestone.
+Do not put `DATABASE_URL` or `SUPABASE_SECRET_KEY` in `client/.env`. Change
+frontend `VITE_` values before building; Vite embeds them at build time.
 
 ## Features and usage
 
@@ -151,31 +209,47 @@ scaffold and will be replaced with Roomy endpoints in a later milestone.
 Use the light-switch control at the top-right of the page to toggle between
 Light mode and Night mode.
 
-### Current data behavior
+### Data behavior
 
-Room and item changes are saved to the current browser’s `localStorage`. They
-are not shared with other browsers or users and are not yet stored in
-PostgreSQL. Clearing the site’s local storage resets the demo data.
+Demo changes are saved in the current browser’s `localStorage`. Real mode sends
+them to PostgreSQL through Express and scopes every record to the signed-in
+user. Switching modes does not transfer demo data into a real account.
 
-### API status
+### API routes
 
-No Roomy inventory API endpoints are currently used by the frontend. The
-`client/src/api/` and `server/` folders still contain starter adapter/scaffold
-code from the class template; the existing `/api/sightings` routes are not
-Roomy features. Planned Roomy endpoints will be documented here once the real
-API is implemented.
+All `/api` routes require a Supabase access token in the `Authorization: Bearer`
+header. `/healthz` and `/readyz` are public.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET, POST | `/api/rooms` | List rooms with counts; create a room. |
+| GET, PATCH, DELETE | `/api/rooms/:roomId` | Read, rename/resize, or delete a room. |
+| GET | `/api/categories` | List the fixed category choices. |
+| GET, POST | `/api/rooms/:roomId/items` | Search/filter/paginate items; create one. |
+| GET, PATCH, DELETE | `/api/items/:itemId` | Read, update, or delete an item. |
+| GET | `/api/items/:itemId/contents` | List stored items and a confirmation version. |
+| POST | `/api/items/:itemId/move` | Move an item to another room. |
+| GET, PUT | `/api/rooms/:roomId/layout` | Load/save one room layout with a revision. |
+| GET, POST, DELETE | `/api/items/:itemId/photo` | Download, upload, or remove a private photo. |
+
+For a nonempty storage unit, move/delete requires `includeContents` and the
+`contentsVersion` returned by the contents route. Including items moves or
+deletes them with the storage unit. Excluding items leaves them unstored in
+their original room. A changed version returns `409`, prompting a fresh review.
+Requests use JSON except photo upload, which uses raw JPEG/PNG/WebP bytes.
 
 ## Deploying
 
-Roomy is not deployed yet. Week 1 development is intended to run locally in
-demo mode using `npm run dev`.
+No final live deployment has been verified. The real mode needs a deployed
+Express process and Supabase project; the frontend host choice is pending.
 
 The repository contains a deployment workflow inherited from the class
 template, but it has not been configured as the project’s final deployment.
-Before deployment, the project still needs a working API, a hosted PostgreSQL
-database, authentication configuration, environment variables, and a verified
-production build. The live site, API, and demo video links will be added here
-after they exist.
+Set the server environment variables on the API host and run migrations with a
+privileged connection. Set the public `VITE_` values on the frontend host,
+rebuild, and add that frontend origin to `CORS_ORIGINS`. Then verify two real
+accounts cannot access one another's rooms or item IDs. The live site, API,
+and demo video links will be added after deployment.
 
 ## Project structure
 
@@ -186,10 +260,16 @@ client/
     pages/                  Rooms, inventory, item form, and related screens
     components/             Reusable room, item, layout, and common UI pieces
     assets/                 Local fallback icons and images
-    api/                    Starter API adapter kept for the future backend
+    api/                    Matching demo/HTTP adapters and Supabase Auth client
   .env.example              Frontend environment variable template
   package.json              Frontend scripts and dependencies
-server/                     Starter Express/PostgreSQL scaffold; not connected yet
+server/
+  app.js                    Protected Roomy HTTP routes and errors
+  roomyRepo.js              Parameterized SQL and transactions
+  auth.js                   Supabase session verification
+  photos.js                 Private Storage operations and cleanup retry
+  db/migrations/            Versioned Roomy schema
+  db/migrate.js             Migration runner
 docs/                       Planning notes and project documentation
 .github/workflows/          Deployment workflow inherited from the template
 AI-USAGE.md                 Record of AI assistance and project decisions
@@ -197,7 +277,7 @@ AI-USAGE.md                 Record of AI assistance and project decisions
 
 ## Architecture
 
-The current Week 1 flow is intentionally simple:
+Demo flow:
 
 ```text
 React/Vite/Tailwind frontend
@@ -209,22 +289,23 @@ React/Vite/Tailwind frontend
      Browser localStorage
 ```
 
-The planned production flow is:
+Real mode flow:
 
 ```text
 React/Vite/Tailwind frontend
             |
             v
-       Express API
+       Express API ─────── Supabase Auth (verify session)
         /       \
        v         v
- PostgreSQL   Supabase Auth
+ PostgreSQL   private Supabase Storage
 ```
 
-The frontend will eventually call the Express API for rooms and inventory.
-The API will validate requests and read or write PostgreSQL, while Supabase
-Auth will provide user authentication. The final hosting arrangement will be
-selected when the backend is implemented.
+Express derives ownership from a verified session, validates requests, and
+uses parameterized SQL for inventory and layouts. Storage moves/deletions run
+in database transactions. The planner saves logical coordinates measured in
+centimeters against each room's specified width and depth; resizing a planner
+shape does not change the item's optional reference measurements.
 
 ## Screenshots
 
@@ -241,29 +322,24 @@ browser-based sample data.
 
 ## Known issues and next steps
 
-- The frontend currently uses browser `localStorage` instead of a shared
-  PostgreSQL database.
-- User registration, login, and Supabase authentication are not implemented.
-- The Express server is still the class template scaffold and does not expose
-  Roomy room or inventory endpoints.
-- The planner button and dimension preview are prototypes; the full movable 2D
-  room planner is not implemented yet.
-- Image upload and persistent image storage are not implemented.
-- The app has not been deployed to a production frontend, API, or database.
-- A final screenshot and deployment links still need to be added to this README.
+- A Supabase project has not yet been created/configured, so real database,
+  Auth, photo, and cross-account tests are still pending.
+- The API and planner are implemented locally but not yet verified against a
+  live Supabase project. These screenshots show demo mode.
+- The app has not been verified on a production frontend/API/database host.
+- Demo browser data is not imported into real accounts automatically.
+- The old sightings template files remain in `server/db/`; only
+  `npm run db:migrate` applies the Roomy schema.
 
-Next development priorities are to define the Roomy database schema, implement
-the room and inventory API, connect the frontend to PostgreSQL, add
-authentication, and then build the full planner workflow.
+Next, create and connect Supabase, test the migration and full user flow with
+two accounts, configure a least-privilege API database login, and deploy.
 
 ## What I would do next
 
-1. Define the Roomy database schema and API contract for users, rooms, items,
-   and storage relationships.
-2. Replace the browser-only state with Express and PostgreSQL while keeping the
-   current interface working.
-3. Add Supabase authentication, complete the movable 2D planner, and deploy
-   the frontend and backend for the final demonstration.
+1. Set up Supabase Auth, PostgreSQL, and the private photo bucket.
+2. Verify migration, ownership isolation, storage choices, photos, and planner
+   save/reload with two accounts; fix any integration errors.
+3. Deploy the API and frontend, update their URLs, and record a final demo.
 
 ## Author
 
@@ -273,13 +349,15 @@ Bachelor of Science in Computer Science, CS-404
 ## Documentation
 
 - [Project proposal and design notes](docs/README.md)
+- [Backend API contract and setup](docs/backend.md)
 - [AI usage record](AI-USAGE.md)
 - [Class starter instructions](START-HERE.md)
 
 ## AI use
 
-This project was built with AI assistance. The detailed record of prompts,
-changes, decisions, and corrections is available in
+ChatGPT/Codex assisted with parts of the frontend, backend planning and
+implementation, and code review. The dated record of prompts, decisions, and
+corrections is available in
 [AI-USAGE.md](AI-USAGE.md).
 
 ![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
