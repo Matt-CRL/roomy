@@ -6,8 +6,8 @@ stored, and organise rooms while rearranging or decorating their space.
 
 > **Current progress:** Demo mode still works in the browser. The Roomy Express
 > API, PostgreSQL migrations, Supabase authentication integration, private photo
-> routes, and saved planner are implemented locally. A Supabase project has not
-> been connected or tested yet; production deployment is still pending.
+> routes, and saved planner are implemented locally. Supabase has been configured
+> for local testing; production deployment is still pending.
 
 **Live site:** Not deployed yet
 **API:** Implemented locally; live configuration pending
@@ -88,7 +88,8 @@ Open the address printed by Vite, normally:
 http://localhost:5173
 ```
 
-The first screen opens the Bedroom 1 inventory. Use the navigation to visit
+In demo mode, the first screen opens the Bedroom 1 inventory. A new real
+account opens the Rooms page so the user can create their first room. Use the navigation to visit
 the Rooms page, enter a room, add or edit items, and switch between grid and
 list views.
 
@@ -177,7 +178,7 @@ frontend `VITE_` values before building; Vite embeds them at build time.
 
 - View room, item, and storage summaries.
 - Add a room with a custom name.
-- Enter a room by double-clicking its room card.
+- Enter a room by double-clicking its room card on desktop or tapping it on mobile.
 - Rename or delete a room from its three-dot menu.
 - Deleting a room also removes the items assigned to it after confirmation.
 
@@ -189,8 +190,8 @@ frontend `VITE_` values before building; Vite embeds them at build time.
 - Delete an item after confirmation.
 - Search items by name, category, or storage information.
 - Filter between all items, regular items, and storage units.
-- Filter by room-related categories such as bedroom, living room, kitchen,
-  bathroom, and general items.
+- Filter by grouped categories such as Furniture & decor, Electronics,
+  Clothing & personal, Kitchen, Books & documents, and Storage & household.
 - Switch between grid and list views.
 - Open an item focus preview by selecting an inventory card.
 - Open a storage unit’s separate inventory sidebar to view stored items.
@@ -309,37 +310,56 @@ shape does not change the item's optional reference measurements.
 
 ## Screenshots
 
+### Authentication page
+
+![Roomy authentication page](docs/assets/auth-page.png)
+
 ### Rooms page
 
 ![Roomy Rooms page](docs/assets/rooms-page.png)
+
+### Add Room planner preview
+
+![Roomy Add Room planner preview](docs/assets/add-room-planner.png)
 
 ### Room inventory
 
 ![Roomy room inventory page](docs/assets/room-inventory.png)
 
-These screenshots show the current Week 1 frontend demo running with the
-browser-based sample data.
+### Add Item form
+
+![Roomy Add Item form](docs/assets/add-item-form.png)
+
+These screenshots show the current Roomy frontend running locally. Production
+deployment is still pending.
 
 ## Known issues and next steps
 
-- A Supabase project has not yet been created/configured, so real database,
-  Auth, photo, and cross-account tests are still pending.
-- The API and planner are implemented locally but not yet verified against a
-  live Supabase project. These screenshots show demo mode.
+- The complete real-mode flow still needs verification with two separate
+  accounts, especially ownership isolation and Row Level Security behavior.
+- The planner is still an early version and needs to be finalized with more
+  complete layout editing and placement behavior.
+- The website responsiveness still needs further testing and polish across
+  smaller screens and mobile device layouts.
 - The app has not been verified on a production frontend/API/database host.
 - Demo browser data is not imported into real accounts automatically.
 - The old sightings template files remain in `server/db/`; only
   `npm run db:migrate` applies the Roomy schema.
 
-Next, create and connect Supabase, test the migration and full user flow with
-two accounts, configure a least-privilege API database login, and deploy.
+The remaining work is focused on finalizing the planner, improving responsive
+layouts, completing real-mode security testing, and deploying the application.
 
 ## What I would do next
 
-1. Set up Supabase Auth, PostgreSQL, and the private photo bucket.
-2. Verify migration, ownership isolation, storage choices, photos, and planner
-   save/reload with two accounts; fix any integration errors.
-3. Deploy the API and frontend, update their URLs, and record a final demo.
+1. Finalize the planner’s layout editing, item placement, and save/reload
+   behavior.
+2. Test the complete real-mode flow with two accounts, including rooms, items,
+   storage decisions, photo uploads, layouts, and cross-account isolation.
+3. Test and polish the responsive layouts on mobile and smaller desktop widths.
+4. Prepare production deployment by configuring the least-privilege API
+   database login, frontend/API environment variables, CORS, and migrations.
+5. Deploy the API and frontend, then update the live links, screenshots, and
+   final demonstration materials.
 
 ## Author
 
