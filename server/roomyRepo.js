@@ -4,6 +4,22 @@ import { badRequest, conflict, notFound } from './errors.js'
 const roomColumns = 'id, owner_id, name, width_cm, depth_cm, created_at, updated_at'
 const itemColumns = 'id, owner_id, room_id, name, category, notes, is_storage_unit, parent_storage_id, width_cm, depth_cm, photo_path, photo_fit, photo_position, photo_position_x, photo_position_y, photo_zoom, created_at, updated_at'
 
+function shapeFitsRoom(shape, roomWidth, roomDepth) {
+  if (roomWidth === null || roomDepth === null) return false
+  const width = Number(shape.width)
+  const depth = Number(shape.depth)
+  const x = Number(shape.x)
+  const y = Number(shape.y)
+  const rotation = Number(shape.rotation)
+  const radians = (rotation * Math.PI) / 180
+  const rotatedWidth = width * Math.abs(Math.cos(radians)) + depth * Math.abs(Math.sin(radians))
+  const rotatedDepth = width * Math.abs(Math.sin(radians)) + depth * Math.abs(Math.cos(radians))
+  const centerX = x + width / 2
+  const centerY = y + depth / 2
+  return centerX - rotatedWidth / 2 >= -0.0001 && centerY - rotatedDepth / 2 >= -0.0001 &&
+    centerX + rotatedWidth / 2 <= Number(roomWidth) + 0.0001 && centerY + rotatedDepth / 2 <= Number(roomDepth) + 0.0001
+}
+
 export const roomJson = (row) => row && ({
   id: row.id, name: row.name, widthCm: row.width_cm === null ? null : Number(row.width_cm),
   depthCm: row.depth_cm === null ? null : Number(row.depth_cm),
@@ -72,10 +88,10 @@ export async function updateRoom(pool, ownerId, roomId, input) {
     const room = await ownedRoom(db, ownerId, roomId, true)
     const width = 'widthCm' in input ? input.widthCm : room.width_cm
     const depth = 'depthCm' in input ? input.depthCm : room.depth_cm
-    const placed = await db.query(`SELECT 1 FROM roomy_layout_items WHERE owner_id=$1 AND room_id=$2
-      AND ($3::numeric IS NULL OR $4::numeric IS NULL OR x+width>$3 OR y+depth>$4) LIMIT 1`,
-    [ownerId, roomId, width, depth])
-    if (placed.rowCount) throw conflict('Existing planner shapes would fall outside the new room dimensions')
+    const placed = await db.query('SELECT x,y,width,depth,rotation FROM roomy_layout_items WHERE owner_id=$1 AND room_id=$2', [ownerId, roomId])
+    if (placed.rows.some((shape) => !shapeFitsRoom(shape, width, depth))) {
+      throw conflict('Existing planner shapes would fall outside the new room dimensions')
+    }
     const result = await db.query(`UPDATE roomy_rooms SET name=$3,width_cm=$4,depth_cm=$5,updated_at=now()
       WHERE owner_id=$1 AND id=$2 RETURNING *`,
     [ownerId, roomId, input.name ?? room.name, width, depth])
@@ -267,7 +283,7 @@ export async function getLayout(db, ownerId, roomId) {
 export async function saveLayout(pool, ownerId, roomId, validate) {
   return transaction(pool, async (db) => {
     const room = await ownedRoom(db, ownerId, roomId, true)
-    const { revision, items } = validate(room)
+    const { revision, widthCm, depthCm, items } = validate(room)
     await db.query(`INSERT INTO roomy_layouts(room_id,owner_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, [roomId, ownerId])
     const current = (await db.query('SELECT revision FROM roomy_layouts WHERE room_id=$1 AND owner_id=$2 FOR UPDATE', [roomId, ownerId])).rows[0]
     if (current.revision !== revision) throw conflict('This layout changed elsewhere. Reload before saving.')
@@ -280,7 +296,11 @@ export async function saveLayout(pool, ownerId, roomId, validate) {
       await db.query(`INSERT INTO roomy_layout_items(owner_id,room_id,item_id,x,y,width,depth,rotation,color)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
       [ownerId, roomId, item.itemId, item.x, item.y, item.width, item.depth, item.rotation, item.color])
+      await db.query(`UPDATE roomy_items SET width_cm=$4,depth_cm=$5,updated_at=now()
+        WHERE owner_id=$1 AND room_id=$2 AND id=$3`,
+      [ownerId, roomId, item.itemId, item.width, item.depth])
     }
+    await db.query('UPDATE roomy_rooms SET width_cm=$3,depth_cm=$4,updated_at=now() WHERE owner_id=$1 AND id=$2', [ownerId, roomId, widthCm, depthCm])
     await db.query('UPDATE roomy_layouts SET revision=revision+1,updated_at=now() WHERE room_id=$1 AND owner_id=$2', [roomId, ownerId])
     return getLayout(db, ownerId, roomId)
   })

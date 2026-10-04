@@ -56,5 +56,9 @@ export const saveLayout = (roomId, input) => request(`/api/rooms/${roomId}/layou
 export const uploadPhoto = (id, file) => request(`/api/items/${id}/photo`, {
   method: 'POST', body: file, headers: { 'content-type': file.type }, raw: true,
 })
-export const getPhoto = (id) => request(`/api/items/${id}/photo`, { blob: true })
+export const getPhoto = (id, version) => request(
+  `/api/items/${id}/photo${version ? `?v=${encodeURIComponent(version)}` : ''}`,
+  { blob: true },
+)
 export const deletePhoto = (id) => request(`/api/items/${id}/photo`, { method: 'DELETE' })
+export const deleteAccount = () => request('/api/account', { method: 'DELETE' })

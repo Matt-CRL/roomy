@@ -3,20 +3,76 @@ import ItemFormPage from './pages/ItemFormPage'
 import RoomsPage from './pages/RoomsPage'
 import RoomInventoryPage from './pages/RoomInventoryPage'
 import AuthPage from './pages/AuthPage'
-import PlannerPage from './pages/PlannerPage'
+import PlannerWorkspace, { PlannerLoadingScreen } from './pages/PlannerWorkspace'
 import ThemeToggleButton from './components/layout/ThemeToggleButton'
 import Button from './components/common/Button'
 import * as api from './api'
 import { supabase } from './api/supabase'
 import DemoNotice from './components/DemoNotice'
+import { compressImage } from './utils/compressImage'
 
 const ROOMS_STORAGE_KEY = 'roomy:rooms'
 const ITEMS_STORAGE_KEY = 'roomy:items'
+const DEMO_THEME_STORAGE_KEY = 'roomy:demo-theme'
+
+function readDemoThemePreference() {
+  try {
+    return window.localStorage.getItem(DEMO_THEME_STORAGE_KEY) === 'dark'
+  } catch {
+    return false
+  }
+}
+
+function readAccountThemePreference(user) {
+  const savedTheme = user?.user_metadata?.roomy_theme
+  if (savedTheme === 'dark') return true
+  if (savedTheme === 'light') return false
+
+  try {
+    return window.localStorage.getItem(`roomy:theme:${user?.id}`) === 'dark'
+  } catch {
+    return false
+  }
+}
+
+function decodeRoutePart(value) {
+  try {
+    return value ? decodeURIComponent(value) : null
+  } catch {
+    return null
+  }
+}
+
+function readAppRoute(pathname = window.location.pathname) {
+  const parts = pathname.split('/').filter(Boolean).map(decodeRoutePart)
+
+  if (parts[0] === 'login') return { page: 'login', roomId: null, itemId: null }
+  if (parts[0] !== 'rooms') return { page: 'rooms', roomId: null, itemId: null }
+  if (!parts[1]) return { page: 'rooms', roomId: null, itemId: null }
+  if (parts[2] === 'planner') return { page: 'planner', roomId: parts[1], itemId: null }
+  if (parts[2] === 'items' && parts[3] === 'new') return { page: 'item-form', roomId: parts[1], itemId: null }
+  if (parts[2] === 'items' && parts[3] && parts[4] === 'edit') {
+    return { page: 'item-form', roomId: parts[1], itemId: parts[3] }
+  }
+  return { page: 'inventory', roomId: parts[1], itemId: null }
+}
+
+function appPath(page, roomId, itemId) {
+  if (page === 'login') return '/login'
+  if (page === 'rooms' || !roomId) return '/rooms'
+  if (page === 'planner') return `/rooms/${encodeURIComponent(roomId)}/planner`
+  if (page === 'item-form') {
+    return itemId
+      ? `/rooms/${encodeURIComponent(roomId)}/items/${encodeURIComponent(itemId)}/edit`
+      : `/rooms/${encodeURIComponent(roomId)}/items/new`
+  }
+  return `/rooms/${encodeURIComponent(roomId)}`
+}
 
 const defaultRooms = [
-  { id: 'bedroom-1', name: 'Bedroom 1' },
-  { id: 'bedroom-2', name: 'Bedroom 2' },
-  { id: 'kitchen', name: 'Kitchen' },
+  { id: 'bedroom-1', name: 'Bedroom 1', createdAt: new Date().toISOString() },
+  { id: 'bedroom-2', name: 'Bedroom 2', createdAt: new Date().toISOString() },
+  { id: 'kitchen', name: 'Kitchen', createdAt: new Date().toISOString() },
 ]
 
 const defaultItems = [
@@ -375,13 +431,49 @@ function LegacyThemeToggleButton({ isDarkMode, onToggle }) {
   )
 }
 
-function AppShell({ children, isDarkMode, onToggleTheme, errorMessage, isLoading, confirmation, onConfirmationChoice, onSignOut }) {
+function AppShell({ children, isDarkMode, onToggleTheme, errorMessage, isLoading, confirmation, onConfirmationChoice, onSignOut, hideThemeToggle = false }) {
+  const shellRef = useRef(null)
   const isMoveAction = confirmation?.action === 'Move'
   const keepContentsLabel = isMoveAction ? 'Leave unstored' : 'Keep items'
   const includeContentsLabel = isMoveAction ? 'Move with items' : 'Delete items too'
 
+  useEffect(() => {
+    if (!isDarkMode || !window.matchMedia('(any-hover: hover) and (any-pointer: fine)').matches) return undefined
+
+    const shell = shellRef.current
+    if (!shell) return undefined
+
+    let animationFrame = 0
+    let pointerX = 0
+    let pointerY = 0
+
+    function handlePointerMove(event) {
+      if (event.pointerType === 'touch') return
+
+      pointerX = event.clientX
+      pointerY = event.clientY
+
+      if (animationFrame) return
+      animationFrame = window.requestAnimationFrame(() => {
+        shell.style.setProperty('--cursor-glow-x', `${pointerX}px`)
+        shell.style.setProperty('--cursor-glow-y', `${pointerY}px`)
+        shell.style.setProperty('--cursor-glow-opacity', '1')
+        animationFrame = 0
+      })
+    }
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true })
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.cancelAnimationFrame(animationFrame)
+      shell.style.setProperty('--cursor-glow-opacity', '0')
+    }
+  }, [isDarkMode])
+
   return (
     <div
+      ref={shellRef}
       className={`theme-transition min-h-screen ${
         isDarkMode ? 'night-mode' : ''
       }`}
@@ -419,25 +511,25 @@ function AppShell({ children, isDarkMode, onToggleTheme, errorMessage, isLoading
           </section>
         </div>
       )}
-      <ThemeToggleButton
-        isDarkMode={isDarkMode}
-        onToggle={onToggleTheme}
-      />
+      {!hideThemeToggle && <ThemeToggleButton isDarkMode={isDarkMode} onToggle={onToggleTheme} />}
     </div>
   )
 }
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState('inventory')
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const initialRoute = readAppRoute()
+  const [currentPage, setCurrentPage] = useState(initialRoute.page)
+  const [isDarkMode, setIsDarkMode] = useState(() => api.USING_MOCK_API && readDemoThemePreference())
   const [rooms, setRooms] = useState(() =>
     api.USING_MOCK_API ? loadCollection(ROOMS_STORAGE_KEY, defaultRooms) : [],
   )
+  const [roomLayouts, setRoomLayouts] = useState({})
   const [items, setItems] = useState(() =>
     api.USING_MOCK_API ? loadInitialItems() : [],
   )
-  const [selectedRoomId, setSelectedRoomId] = useState(api.USING_MOCK_API ? 'bedroom-1' : null)
+  const [selectedRoomId, setSelectedRoomId] = useState(initialRoute.roomId || (api.USING_MOCK_API ? 'bedroom-1' : null))
   const [selectedItem, setSelectedItem] = useState(null)
+  const [routeItemId, setRouteItemId] = useState(initialRoute.itemId)
   const [session, setSession] = useState(api.USING_MOCK_API ? true : undefined)
   const [demoDisplayName, setDemoDisplayName] = useState('')
   const [isDemoSignedOut, setIsDemoSignedOut] = useState(false)
@@ -449,7 +541,98 @@ export default function App() {
   const [roomFilters, setRoomFilters] = useState({ q: '', type: 'all', categories: '' })
   const [plannerItems, setPlannerItems] = useState([])
   const [storageUnits, setStorageUnits] = useState([])
+  const [isStorageUnitsLoading, setIsStorageUnitsLoading] = useState(false)
   const photoUrls = useRef(new Map())
+  const photoRequests = useRef(new Map())
+  const inventoryLists = useRef(new Map())
+  const photoCacheGeneration = useRef(0)
+
+  function inventoryKey(roomId, filters = roomFilters) {
+    return JSON.stringify([session?.user?.id ?? 'demo', roomId, filters.q, filters.type, filters.categories])
+  }
+
+  function withCachedPhotos(rows) {
+    return rows.map((item) => {
+      const imageUrl = item.hasPhoto && photoUrls.current.get(`${item.id}:${item.updatedAt}`)
+      return imageUrl ? { ...item, imageUrl } : item
+    })
+  }
+
+  function clearPrivateCache() {
+    photoCacheGeneration.current += 1
+    photoUrls.current.forEach((url) => URL.revokeObjectURL(url))
+    photoUrls.current.clear()
+    photoRequests.current.clear()
+    inventoryLists.current.clear()
+  }
+
+  function handleToggleTheme() {
+    const nextIsDarkMode = !isDarkMode
+    setIsDarkMode(nextIsDarkMode)
+
+    if (api.USING_MOCK_API) {
+      try {
+        window.localStorage.setItem(DEMO_THEME_STORAGE_KEY, nextIsDarkMode ? 'dark' : 'light')
+      } catch {
+        // Keep the current theme for this session if browser storage is unavailable.
+      }
+      return
+    }
+
+    const user = session?.user
+    if (!user || !supabase) return
+
+    const theme = nextIsDarkMode ? 'dark' : 'light'
+    try {
+      window.localStorage.setItem(`roomy:theme:${user.id}`, theme)
+    } catch {
+      // Supabase account metadata remains the persistent preference.
+    }
+
+    supabase.auth.updateUser({
+      data: { ...user.user_metadata, roomy_theme: theme },
+    }).then(({ error }) => {
+      if (error) setErrorMessage(`Theme changed, but its account preference could not be saved: ${error.message}`)
+    }).catch((error) => {
+      setErrorMessage(`Theme changed, but its account preference could not be saved: ${error.message}`)
+    })
+  }
+
+  function goToRoute(page, { roomId = selectedRoomId, itemId = null, replace = false } = {}) {
+    const nextPath = appPath(page, roomId, itemId)
+    const nextUrl = `${nextPath}${window.location.search}`
+    const method = replace ? 'replaceState' : 'pushState'
+
+    window.history[method]({ page, roomId, itemId }, '', nextUrl)
+    if (page === 'inventory' && roomId && roomId !== selectedRoomId && !api.USING_MOCK_API) {
+      const cachedItems = inventoryLists.current.get(inventoryKey(roomId))
+      setItems(cachedItems ? withCachedPhotos(cachedItems) : [])
+      setIsItemsLoading(!cachedItems)
+    }
+    setCurrentPage(page)
+    setSelectedRoomId(roomId || null)
+    setRouteItemId(itemId)
+    setSelectedItem(itemId ? items.find((item) => item.id === itemId) || null : null)
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const route = readAppRoute()
+      setCurrentPage(route.page)
+      setSelectedRoomId(route.roomId || null)
+      setRouteItemId(route.itemId)
+      setSelectedItem(route.itemId ? items.find((item) => item.id === route.itemId) || null : null)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [items])
+
+  useEffect(() => {
+    if (currentPage !== 'item-form' || !routeItemId || selectedItem?.id === routeItemId) return
+    const item = items.find((entry) => entry.id === routeItemId)
+    if (item) setSelectedItem(item)
+  }, [currentPage, items, routeItemId, selectedItem?.id])
 
   useEffect(() => () => { photoUrls.current.forEach((url) => URL.revokeObjectURL(url)) }, [])
 
@@ -463,15 +646,18 @@ export default function App() {
   }, [confirmation])
 
   const shellProps = {
-    isDarkMode, onToggleTheme: () => setIsDarkMode((current) => !current),
+    isDarkMode, onToggleTheme: handleToggleTheme,
     errorMessage, isLoading, confirmation,
     onConfirmationChoice: (choice) => { confirmation?.resolve(choice); setConfirmation(null) },
     onSignOut: () => {
       if (api.USING_MOCK_API) {
         setIsDemoSignedOut(true)
+        goToRoute('login', { replace: true })
         return
       }
 
+      clearPrivateCache()
+      goToRoute('login', { replace: true })
       return supabase?.auth.signOut({ scope: 'local' })
     },
   }
@@ -479,6 +665,44 @@ export default function App() {
   const displayName = api.USING_MOCK_API
     ? demoDisplayName || 'User'
     : session?.user?.user_metadata?.display_name || session?.user?.email?.split('@')[0] || 'User'
+  const accountEmail = api.USING_MOCK_API ? 'demo@roomy.local' : session?.user?.email || ''
+
+  async function handleUpdateDisplayName(nextName) {
+    if (api.USING_MOCK_API) {
+      setDemoDisplayName(nextName)
+      return
+    }
+    const { error } = await supabase.auth.updateUser({ data: { display_name: nextName } })
+    if (error) throw error
+  }
+
+  async function handleChangePassword(nextPassword) {
+    if (api.USING_MOCK_API) return
+    const { error } = await supabase.auth.updateUser({ password: nextPassword })
+    if (error) throw error
+  }
+
+    async function handleDeleteAccount() {
+      if (api.USING_MOCK_API) {
+        window.localStorage.removeItem(ROOMS_STORAGE_KEY)
+        window.localStorage.removeItem(ITEMS_STORAGE_KEY)
+        setRooms([])
+        setItems([])
+        setSelectedRoomId(null)
+        setDemoDisplayName('')
+        setIsDemoSignedOut(true)
+        return
+      }
+    await api.deleteAccount()
+    await supabase.auth.signOut({ scope: 'local' })
+  }
+
+  const accountProps = {
+    email: accountEmail,
+    onUpdateDisplayName: handleUpdateDisplayName,
+    onChangePassword: handleChangePassword,
+    onDeleteAccount: handleDeleteAccount,
+  }
 
   const roomsWithCounts = api.USING_MOCK_API ? addRoomCounts(rooms, items) : rooms
   const selectedRoom =
@@ -492,17 +716,45 @@ export default function App() {
     ...item, width: item.widthCm, depth: item.depthCm,
     storedInside: item.parentStorageId ? (item.storedInside || storageNames.get(item.parentStorageId) || 'Stored') : null,
   }))
+  const inventoryStorageOptions = withCachedPhotos((api.USING_MOCK_API ? items : storageUnits)
+    .filter((item) => item.roomId === selectedRoom.id && item.isStorageUnit))
 
   useEffect(() => {
     if (api.USING_MOCK_API || !supabase) return undefined
     let active = true
+    let knownSession = null
+    let initialSessionKnown = false
+
     supabase.auth.getSession().then(({ data }) => {
-      if (active) setSession(data.session)
+      if (active) {
+        knownSession = data.session
+        initialSessionKnown = true
+        if (data.session) setIsDarkMode(readAccountThemePreference(data.session.user))
+        setSession(data.session)
+      }
     })
     const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (active) {
+        const previousSession = knownSession
+        knownSession = nextSession
+        if (previousSession?.user?.id && nextSession?.user?.id && previousSession.user.id !== nextSession.user.id) {
+          clearPrivateCache()
+          setItems([])
+        }
+        if (event === 'INITIAL_SESSION') initialSessionKnown = true
+        if (nextSession && ['INITIAL_SESSION', 'SIGNED_IN', 'USER_UPDATED'].includes(event)) {
+          setIsDarkMode(readAccountThemePreference(nextSession.user))
+        }
         setSession(nextSession)
-        if (!nextSession) { setRooms([]); setItems([]); setSelectedRoomId(null) }
+        if (event === 'SIGNED_IN' && initialSessionKnown && !previousSession && readAppRoute().page === 'login') {
+          goToRoute('rooms', { replace: true })
+        }
+        if (!nextSession) {
+          clearPrivateCache()
+          setRooms([])
+          setItems([])
+          goToRoute('login', { replace: true })
+        }
       }
     })
     return () => { active = false; data.subscription.unsubscribe() }
@@ -517,7 +769,7 @@ export default function App() {
       if (!active) return
       setRooms(nextRooms)
       setSelectedRoomId((current) => nextRooms.some((room) => room.id === current) ? current : (nextRooms[0]?.id ?? null))
-      if (!nextRooms.length) setCurrentPage('rooms')
+      if (!nextRooms.length) goToRoute('rooms', { replace: true })
     }).catch((error) => { if (active) setErrorMessage(error.message) })
       .finally(() => {
         if (active) {
@@ -529,6 +781,40 @@ export default function App() {
   }, [session?.user?.id])
 
   useEffect(() => {
+    if (currentPage !== 'rooms' || !rooms.length || (!api.USING_MOCK_API && !session)) return undefined
+    let active = true
+
+    Promise.all(rooms.map(async (room) => {
+      try {
+        const layout = await api.getLayout(room.id)
+        const placements = Array.isArray(layout.items) ? layout.items : []
+        let roomItems = []
+
+        if (placements.length) {
+          roomItems = api.USING_MOCK_API
+            ? items.filter((item) => item.roomId === room.id)
+            : await listEveryItem(room.id, { q: '', type: 'all', categories: '' })
+        }
+
+        const itemsById = new Map(roomItems.map((item) => [item.id, item]))
+        return [room.id, {
+          ...layout,
+          items: placements.map((placement) => ({
+            ...placement,
+            name: itemsById.get(placement.itemId)?.name || 'Item',
+          })),
+        }]
+      } catch {
+        return [room.id, { items: [], updatedAt: null, previewUnavailable: true }]
+      }
+    })).then((entries) => {
+      if (active) setRoomLayouts(Object.fromEntries(entries))
+    })
+
+    return () => { active = false }
+  }, [currentPage, rooms, session?.user?.id, api.USING_MOCK_API ? items : null])
+
+  useEffect(() => {
     if (api.USING_MOCK_API) {
       setIsItemsLoading(false)
       return undefined
@@ -538,20 +824,33 @@ export default function App() {
       return undefined
     }
     let active = true
-    setIsItemsLoading(true)
+    const key = inventoryKey(selectedRoomId, roomFilters)
+    const cachedItems = inventoryLists.current.get(key)
+    if (cachedItems) setItems(withCachedPhotos(cachedItems))
+    else setItems([])
+    setIsItemsLoading(!cachedItems)
     listEveryItem(selectedRoomId, roomFilters).then((nextItems) => {
-      return hydratePhotos(nextItems).then((withPhotos) => { if (active) setItems(withPhotos) })
+      if (!active) return
+
+      inventoryLists.current.set(key, nextItems)
+      setItems(withCachedPhotos(nextItems))
     }).catch((error) => { if (active) setErrorMessage(error.message) })
       .finally(() => { if (active) setIsItemsLoading(false) })
     return () => { active = false }
   }, [session?.user?.id, selectedRoomId, roomFilters.q, roomFilters.type, roomFilters.categories])
 
   useEffect(() => {
-    if (api.USING_MOCK_API || !session || currentPage !== 'item-form' || !selectedRoomId) return undefined
+    if (api.USING_MOCK_API || !session || !['item-form', 'inventory'].includes(currentPage) || !selectedRoomId) {
+      setIsStorageUnitsLoading(false)
+      return undefined
+    }
     let active = true
+    setStorageUnits([])
+    setIsStorageUnitsLoading(true)
     listEveryItem(selectedRoomId, { q: '', type: 'storage', categories: '' })
       .then((rows) => { if (active) setStorageUnits(rows) })
       .catch((error) => { if (active) setErrorMessage(error.message) })
+      .finally(() => { if (active) setIsStorageUnitsLoading(false) })
     return () => { active = false }
   }, [session?.user?.id, currentPage, selectedRoomId])
 
@@ -596,28 +895,145 @@ export default function App() {
     }
   }
 
-  async function hydratePhotos(rows) {
-    if (api.USING_MOCK_API) return rows
-    return Promise.all(rows.map(async (item) => {
-      if (!item.hasPhoto) return item
-      try {
-        const key = `${item.id}:${item.updatedAt}`
-        if (photoUrls.current.has(key)) return { ...item, imageUrl: photoUrls.current.get(key) }
-        const imageUrl = URL.createObjectURL(await api.getPhoto(item.id))
-        photoUrls.current.set(key, imageUrl)
-        return { ...item, imageUrl }
-      } catch { return item }
-    }))
+  async function getAllRoomItems(roomId) {
+    if (api.USING_MOCK_API) return items.filter((item) => item.roomId === roomId)
+
+    const filters = { q: '', type: 'all', categories: '' }
+    const key = inventoryKey(roomId, filters)
+    let roomItems = inventoryLists.current.get(key)
+    if (!roomItems) {
+      roomItems = await listEveryItem(roomId, filters)
+      inventoryLists.current.set(key, roomItems)
+    }
+    return withCachedPhotos(roomItems)
+  }
+
+  async function loadPhotoForItem(item) {
+    if (api.USING_MOCK_API || !item?.hasPhoto) return null
+
+    const key = `${item.id}:${item.updatedAt}`
+    const cachedUrl = photoUrls.current.get(key)
+    if (cachedUrl) return cachedUrl
+
+    const pendingRequest = photoRequests.current.get(key)
+    if (pendingRequest) return pendingRequest
+
+    const generation = photoCacheGeneration.current
+    const request = api.getPhoto(item.id, item.updatedAt).then((blob) => {
+      if (generation !== photoCacheGeneration.current) return null
+      const imageUrl = URL.createObjectURL(blob)
+      photoUrls.current.set(key, imageUrl)
+      setItems((currentItems) => currentItems.map((entry) => (
+        entry.id === item.id && entry.updatedAt === item.updatedAt
+          ? { ...entry, imageUrl }
+          : entry
+      )))
+      return imageUrl
+    }).finally(() => {
+      if (photoRequests.current.get(key) === request) photoRequests.current.delete(key)
+    })
+
+    photoRequests.current.set(key, request)
+    return request
   }
 
   async function refreshItems(roomId = selectedRoomId) {
-    if (!api.USING_MOCK_API && roomId) setItems(await hydratePhotos(await listEveryItem(roomId, roomFilters)))
+    if (!api.USING_MOCK_API && roomId) {
+      const nextItems = await listEveryItem(roomId, roomFilters)
+      inventoryLists.current.set(inventoryKey(roomId), nextItems)
+      setItems(withCachedPhotos(nextItems))
+    }
+  }
+
+  async function handleSavePlannerLayout(roomId, input) {
+    const savedLayout = await run(() => api.saveLayout(roomId, input))
+    inventoryLists.current.clear()
+    try {
+      const allItemsFilter = { q: '', type: 'all', categories: '' }
+      const [nextRooms, nextPlannerItems, nextInventoryItems] = await Promise.all([
+        api.listRooms(),
+        listEveryItem(roomId, allItemsFilter),
+        listEveryItem(roomId, roomFilters),
+      ])
+
+      inventoryLists.current.set(inventoryKey(roomId, roomFilters), nextInventoryItems)
+      setRooms(nextRooms)
+      setPlannerItems(nextPlannerItems)
+      setItems((currentItems) => withCachedPhotos(nextInventoryItems).map((item) => ({
+        ...item,
+        imageUrl: item.imageUrl ?? currentItems.find((current) => current.id === item.id)?.imageUrl,
+      })))
+    } catch (error) {
+      setErrorMessage(`Layout saved. Other room views will refresh when reopened: ${error.message}`)
+    }
+    return savedLayout
   }
 
   async function getContentsWithPhotos(itemId) {
     const contents = await api.getContents(itemId)
     if (api.USING_MOCK_API) return contents
-    return { ...contents, items: await hydratePhotos(contents.items) }
+    return { ...contents, items: withCachedPhotos(contents.items) }
+  }
+
+  async function handleUnstoreItem(item) {
+    return run(async () => {
+      const updatedItem = await api.updateItem(item.id, { parentStorageId: null })
+      if (api.USING_MOCK_API) {
+        setItems((currentItems) => currentItems.map((entry) => {
+          if (entry.id === item.id) {
+            return { ...entry, ...updatedItem, parentStorageId: null, storedInside: null }
+          }
+
+          const isParentStorage = entry.isStorageUnit && (
+            entry.id === item.parentStorageId ||
+            (item.storedInside && entry.name.toLowerCase() === item.storedInside.toLowerCase())
+          )
+          if (!isParentStorage) return entry
+
+          const storedCount = currentItems.filter((candidate) => (
+            candidate.id !== item.id && (
+              candidate.parentStorageId === entry.id ||
+              (!candidate.parentStorageId && candidate.storedInside?.toLowerCase() === entry.name.toLowerCase())
+            )
+          )).length
+          return { ...entry, storedCount }
+        }))
+        return updatedItem
+      }
+
+      inventoryLists.current.clear()
+      await refreshItems()
+      return updatedItem
+    })
+  }
+
+  async function handleStoreItem(item, storage) {
+    if (item.isStorageUnit) throw new Error('Storage units cannot be stored inside another item.')
+
+    const availableStorages = api.USING_MOCK_API ? items : storageUnits
+    const targetStorage = availableStorages.find((entry) => (
+      entry.id === storage.id && entry.roomId === item.roomId && entry.isStorageUnit
+    ))
+    if (!targetStorage) throw new Error('That storage unit is no longer available in this room.')
+
+    return run(async () => {
+      const updateFields = {
+        parentStorageId: targetStorage.id,
+        ...(api.USING_MOCK_API ? { storedInside: targetStorage.name } : {}),
+      }
+      const updatedItem = await api.updateItem(item.id, updateFields)
+
+      if (api.USING_MOCK_API) {
+        setItems((currentItems) => currentItems.map((entry) => (
+          entry.id === item.id ? { ...entry, ...updateFields } : entry
+        )))
+        return updatedItem
+      }
+
+      inventoryLists.current.clear()
+      await refreshItems()
+      return updatedItem
+    })
   }
 
   async function handleAddRoom(room) {
@@ -628,14 +1044,14 @@ export default function App() {
     setRooms((currentRooms) => [...currentRooms, room])
   }
 
-  async function handleRenameRoom(roomId, name, widthCm, depthCm) {
+  async function handleRenameRoom(roomId, name) {
     if (!api.USING_MOCK_API) {
-      await run(async () => { await api.updateRoom(roomId, { name, widthCm, depthCm }); await refreshRooms() })
+      await run(async () => { await api.updateRoom(roomId, { name }); await refreshRooms() })
       return
     }
     setRooms((currentRooms) =>
       currentRooms.map((room) =>
-        room.id === roomId ? { ...room, name, widthCm, depthCm } : room,
+        room.id === roomId ? { ...room, name } : room,
       ),
     )
   }
@@ -683,13 +1099,15 @@ export default function App() {
           ? await api.updateItem(selectedItem.id, payload)
           : await api.createItem(selectedRoom.id, payload)
         if (formData.photoFile) {
-          try { await api.uploadPhoto(saved.id, formData.photoFile) }
+          try {
+            const compressedPhoto = await compressImage(formData.photoFile)
+            await api.uploadPhoto(saved.id, compressedPhoto)
+          }
           catch (error) { setSelectedItem(saved); throw new Error(`Item saved, but photo upload failed: ${error.message}`) }
         }
         await refreshItems()
         await refreshRooms()
-        setSelectedItem(null)
-        setCurrentPage('inventory')
+        goToRoute('inventory')
       })
       return
     }
@@ -722,8 +1140,7 @@ export default function App() {
 
       return [...currentItems, savedItem]
     })
-    setSelectedItem(null)
-    setCurrentPage('inventory')
+    goToRoute('inventory')
   }
 
   async function handleDeleteItem(itemId) {
@@ -741,8 +1158,7 @@ export default function App() {
         await api.deleteItem(itemId, decision)
         await refreshItems()
         await refreshRooms()
-        setSelectedItem(null)
-        setCurrentPage('inventory')
+        goToRoute('inventory')
       })
       return
     }
@@ -757,8 +1173,7 @@ export default function App() {
     setItems((currentItems) => currentItems
       .filter((entry) => entry.id !== itemId && (!includeContents || !children.some((child) => child.id === entry.id)))
       .map((entry) => children.some((child) => child.id === entry.id) ? { ...entry, storedInside: null } : entry))
-    setSelectedItem(null)
-    setCurrentPage('inventory')
+    goToRoute('inventory')
   }
 
   async function handleMoveItem(itemId, roomName) {
@@ -780,8 +1195,7 @@ export default function App() {
         await api.moveItem(itemId, { targetRoomId: targetRoom.id, ...decision })
         await refreshItems()
         await refreshRooms()
-        setSelectedItem(null)
-        setCurrentPage('inventory')
+        goToRoute('inventory')
       })
       return
     }
@@ -800,33 +1214,36 @@ export default function App() {
         : { ...entry, storedInside: null }
       return entry
     }))
-    setSelectedItem(null)
-    setCurrentPage('inventory')
+    goToRoute('inventory')
   }
 
   if (!api.USING_MOCK_API && !supabase) {
     return <div className="mx-auto max-w-xl p-8 text-slate-900">Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in client/.env to enable the real app.</div>
   }
   if (!api.USING_MOCK_API && session === undefined) {
+    if (currentPage === 'planner') return <PlannerLoadingScreen />
     return <div role="status" className="p-8 text-slate-700">Checking your session…</div>
   }
   if (isDemoSignedOut) {
     return <AuthPage
       demoMode
+      isDarkMode={isDarkMode}
+      onToggleTheme={handleToggleTheme}
       onDemoSignIn={(nextDisplayName) => {
         if (nextDisplayName) setDemoDisplayName(nextDisplayName)
+        goToRoute('rooms', { replace: true })
         setIsDemoSignedOut(false)
       }}
     />
   }
   if (!api.USING_MOCK_API && !session) {
-    return <AuthPage />
+    return <AuthPage isDarkMode={isDarkMode} onToggleTheme={handleToggleTheme} />
   }
 
   if (currentPage === 'planner') {
-    return <AppShell {...shellProps}>
-      <PlannerPage room={selectedRoom} items={plannerItems} onBack={() => setCurrentPage('inventory')}
-        onLoad={api.getLayout} onSave={api.saveLayout} onGetContents={api.getContents} onSignOut={shellProps.onSignOut} displayName={displayName} />
+    return <AppShell {...shellProps} hideThemeToggle>
+      <PlannerWorkspace room={selectedRoom} items={plannerItems} onBack={() => goToRoute('inventory')}
+        isDarkMode={isDarkMode} onToggleTheme={handleToggleTheme} onLoad={api.getLayout} onLoadPhoto={loadPhotoForItem} onSave={handleSavePlannerLayout} onGetContents={api.getContents} onSignOut={shellProps.onSignOut} displayName={displayName} {...accountProps} />
     </AppShell>
   }
 
@@ -835,16 +1252,17 @@ export default function App() {
       <AppShell {...shellProps}>
         <RoomsPage
           rooms={roomsWithCounts}
+          roomLayouts={roomLayouts}
           onAddRoom={handleAddRoom}
           onRenameRoom={handleRenameRoom}
           onDeleteRoom={handleDeleteRoom}
           onSignOut={shellProps.onSignOut}
           displayName={displayName}
+          isDarkMode={isDarkMode}
           isLoading={isRoomsLoading}
+          {...accountProps}
           onEnterRoom={(room) => {
-            setSelectedRoomId(room.id)
-            if (!api.USING_MOCK_API) setIsItemsLoading(true)
-            setCurrentPage('inventory')
+            goToRoute('inventory', { roomId: room.id })
           }}
         />
       </AppShell>
@@ -857,15 +1275,17 @@ export default function App() {
         <ItemFormPage
           room={selectedRoom}
           item={selectedItem}
-          onCancel={() => setCurrentPage('inventory')}
-          onBackToRooms={() => setCurrentPage('rooms')}
-          onBackToInventory={() => setCurrentPage('inventory')}
+          onCancel={() => goToRoute('inventory')}
+          onBackToRooms={() => goToRoute('rooms')}
+          onBackToInventory={() => goToRoute('inventory')}
           rooms={roomsWithCounts}
           onSave={handleSaveItem}
           onDeleteItem={handleDeleteItem}
           onMoveItem={handleMoveItem}
           onSignOut={shellProps.onSignOut}
           displayName={displayName}
+          isDarkMode={isDarkMode}
+          {...accountProps}
           onDeletePhoto={async (itemId) => run(async () => {
             await api.deletePhoto(itemId)
             setSelectedItem((current) => current ? { ...current, hasPhoto: false, imageUrl: null } : current)
@@ -883,19 +1303,25 @@ export default function App() {
       <RoomInventoryPage
         room={selectedRoom}
         items={displayItems.filter((item) => item.roomId === selectedRoom.id)}
-        onBackToRooms={() => setCurrentPage('rooms')}
+        onBackToRooms={() => goToRoute('rooms')}
         onAddItem={() => {
-          setSelectedItem(null)
-          setCurrentPage('item-form')
+          goToRoute('item-form', { itemId: null })
         }}
         onEditItem={(item) => {
-          setSelectedItem(item)
-          setCurrentPage('item-form')
+          goToRoute('item-form', { itemId: item.id })
         }}
-        onOpenPlanner={() => setCurrentPage('planner')}
+        onOpenPlanner={() => goToRoute('planner')}
         onSignOut={shellProps.onSignOut}
         displayName={displayName}
+        isDarkMode={isDarkMode}
+        {...accountProps}
         onGetContents={api.USING_MOCK_API ? undefined : getContentsWithPhotos}
+        onGetAddableItems={getAllRoomItems}
+        onLoadPhoto={loadPhotoForItem}
+        onUnstoreItem={handleUnstoreItem}
+        onStoreItem={handleStoreItem}
+        storageOptions={inventoryStorageOptions}
+        storageOptionsLoading={isStorageUnitsLoading}
         isLoading={isItemsLoading}
         onFilterChange={api.USING_MOCK_API ? undefined : (next) => setRoomFilters((current) => {
           const updated = { q: next.q, type: next.type, categories: next.categories.join(',') }

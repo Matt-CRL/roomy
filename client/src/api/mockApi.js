@@ -24,7 +24,7 @@ export async function listRooms() {
 export async function getRoom(id) { return (await listRooms()).find((room) => room.id === id) || missing() }
 export async function createRoom(input) {
   await wait()
-  const room = { ...input, id: crypto.randomUUID(), itemCount: 0, storageCount: 0 }
+  const room = { ...input, id: crypto.randomUUID(), itemCount: 0, storageCount: 0, createdAt: input.createdAt || new Date().toISOString() }
   saveRows(ROOMS, [...readRows(ROOMS), room])
   return room
 }
@@ -111,7 +111,34 @@ export async function saveLayout(roomId, input) {
   const layouts = readRows(LAYOUTS)
   const current = await getLayout(roomId)
   if (current.revision !== input.revision) throw new Error('Layout changed; reload first')
-  const next = { ...current, ...input, revision: current.revision + 1 }
+  const rooms = readRows(ROOMS)
+  const roomIndex = rooms.findIndex((room) => room.id === roomId)
+  if (roomIndex < 0) missing()
+  const widthCm = input.widthCm ?? rooms[roomIndex].widthCm
+  const depthCm = input.depthCm ?? rooms[roomIndex].depthCm
+  if (!Number.isFinite(Number(widthCm)) || !Number.isFinite(Number(depthCm)) || Number(widthCm) < 1 || Number(depthCm) < 1) {
+    throw new Error('Set room width and depth before saving a layout')
+  }
+  rooms[roomIndex] = { ...rooms[roomIndex], widthCm: Number(widthCm), depthCm: Number(depthCm) }
+  saveRows(ROOMS, rooms)
+
+  const dimensionsByItemId = new Map((input.items || []).map((item) => [item.itemId, item]))
+  const nextItems = readRows(ITEMS).map((item) => {
+    const shape = dimensionsByItemId.get(item.id)
+    return shape
+      ? { ...item, widthCm: shape.width, depthCm: shape.depth, width: shape.width, depth: shape.depth }
+      : item
+  })
+  saveRows(ITEMS, nextItems)
+
+  const next = {
+    ...current,
+    ...input,
+    widthCm: Number(widthCm),
+    depthCm: Number(depthCm),
+    revision: current.revision + 1,
+    updatedAt: new Date().toISOString(),
+  }
   saveRows(LAYOUTS, [...layouts.filter((layout) => layout.roomId !== roomId), next])
   return next
 }

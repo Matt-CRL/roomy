@@ -32,5 +32,5 @@ export const {
   listRooms, getRoom, createRoom, updateRoom, deleteRoom,
   listCategories, listItems, getItem, createItem, updateItem,
   getContents, moveItem, deleteItem, getLayout, saveLayout,
-  uploadPhoto, getPhoto, deletePhoto,
+  uploadPhoto, getPhoto, deletePhoto, deleteAccount,
 } = implementation

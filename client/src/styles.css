@@ -4,6 +4,55 @@
 
 @import "tailwindcss";
 
+@layer base {
+  button:not(:disabled),
+  a[href],
+  summary,
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='range']:not(:disabled),
+  label:has(input[type='checkbox']:not(:disabled)),
+  label:has(input[type='radio']:not(:disabled)),
+  [role='button']:not([aria-disabled='true']),
+  [role='link']:not([aria-disabled='true']),
+  [role='option']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  [role='tab']:not([aria-disabled='true']),
+  [role='switch']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  input[type='checkbox']:disabled,
+  input[type='radio']:disabled,
+  input[type='range']:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+}
+
+@keyframes planner-loading-bar {
+  from {
+    transform: translateX(-110%);
+  }
+
+  to {
+    transform: translateX(285%);
+  }
+}
+
+.planner-loading-bar {
+  animation: planner-loading-bar 1.25s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planner-loading-bar {
+    animation: none;
+  }
+}
+
 @keyframes item-focus-in {
   from {
     opacity: 0;
@@ -104,6 +153,32 @@
 
 .inventory-sidebar::-webkit-scrollbar {
   display: none;
+}
+
+.storage-contents-rail {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.storage-contents-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.planner-room-items-rail {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.planner-room-items-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.planner-room-items-content {
+  transition: transform 130ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.planner-room-items-thumb {
+  transition: transform 180ms cubic-bezier(0.22, 0.8, 0.24, 1);
 }
 
 .inventory-sidebar-at-top {
@@ -217,6 +292,101 @@
   color: #faf6ef;
 }
 
+.night-mode::before {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  background: radial-gradient(
+    circle 210px at var(--cursor-glow-x, -500px) var(--cursor-glow-y, -500px),
+    rgb(255 170 105 / 45%) 0%,
+    rgb(255 112 38 / 24%) 46%,
+    transparent 100%
+  );
+  content: '';
+  opacity: var(--cursor-glow-opacity, 0);
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+.image-cursor-trail-layer {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.image-cursor-trail-layer-scoped {
+  position: absolute;
+  z-index: 0;
+}
+
+.image-cursor-trail-sticker {
+  position: absolute;
+  width: clamp(64px, 7vw, 112px);
+  height: clamp(64px, 7vw, 112px);
+  object-fit: contain;
+  opacity: 0;
+  user-select: none;
+  filter: drop-shadow(0 6px 7px rgb(15 23 42 / 14%));
+  will-change: transform, opacity;
+  animation: image-cursor-trail-pop 1450ms cubic-bezier(0.2, 0.7, 0.25, 1) forwards;
+}
+
+@keyframes image-cursor-trail-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.72) rotate(var(--trail-rotation, 0deg));
+  }
+
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(var(--trail-rotation, 0deg));
+  }
+
+  70% {
+    opacity: 0.9;
+    transform: translate(-50%, -62%) scale(0.96) rotate(var(--trail-rotation, 0deg));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -88%) scale(0.8) rotate(var(--trail-rotation, 0deg));
+  }
+}
+
+.app-navbar-surface {
+  transition: background-color 280ms ease, border-color 280ms ease;
+}
+
+.app-navbar-logo-dark {
+  display: none;
+}
+
+.night-mode .app-navbar-logo-light {
+  display: none;
+}
+
+.night-mode .app-navbar-logo-dark {
+  display: block;
+}
+
+.night-mode .app-navbar-surface {
+  border-color: #45415f;
+  background-color: #1d1b31;
+}
+
+.night-mode .app-navbar-user-button {
+  border-color: #5b5575;
+  background-color: transparent;
+  color: #faf6ef;
+}
+
+.night-mode .app-navbar-user-button:hover {
+  border-color: #8078a2;
+  background-color: #302c49;
+}
+
 .night-mode-lamp-glow {
   position: fixed;
   z-index: 0;
@@ -249,10 +419,24 @@
   background-size: 16px 16px;
 }
 
+.planner-side-panel {
+  background-color: #e2e8f0;
+}
+
+.room-card-preview-shape {
+  fill: #e2e8f0;
+  stroke: #64748b;
+}
+
 .night-mode .room-preview-grid {
   background-image:
     linear-gradient(to right, rgb(203 213 225 / 18%) 1px, transparent 1px),
     linear-gradient(to bottom, rgb(203 213 225 / 18%) 1px, transparent 1px);
+}
+
+.night-mode .room-card-preview-shape {
+  fill: #45415f;
+  stroke: #9b95ad;
 }
 
 .night-mode-bottom-gradient {
@@ -313,9 +497,25 @@
   pointer-events: none;
 }
 
+.auth-night-left-cursor-glow::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: radial-gradient(
+    circle 210px at var(--auth-cursor-glow-x, -500px) var(--auth-cursor-glow-y, -500px),
+    rgb(255 170 105 / 45%) 0%,
+    rgb(255 112 38 / 24%) 46%,
+    transparent 100%
+  );
+  content: '';
+  opacity: var(--auth-cursor-glow-opacity, 0);
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
 .night-mode > main {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .night-mode .bg-white {
@@ -324,6 +524,26 @@
 
 .night-mode .night-form-surface {
   background-color: #24223a;
+}
+
+.night-mode .auth-login-panel {
+  background-color: #000000;
+}
+
+.auth-google-button {
+  border-color: #0c0920;
+  background-color: #0c0920;
+  color: #faf6ef;
+}
+
+.auth-google-button:hover {
+  border-color: #17132d;
+  background-color: #17132d;
+}
+
+.night-mode .auth-google-button,
+.night-mode .auth-google-button:hover {
+  border-color: #faf6ef;
 }
 
 .night-mode .bg-slate-50 {
@@ -340,6 +560,10 @@
 
 .night-mode .bg-orange-50 {
   background-color: #4a3036;
+}
+
+.night-mode .planner-side-panel {
+  background-color: #1d1b31;
 }
 
 .night-mode .bg-orange-500 {
@@ -396,6 +620,11 @@
 
 .night-mode .border-slate-200 {
   border-color: #514c69;
+}
+
+.night-mode .storage-add-item-header.border-b,
+.night-mode .storage-add-item-option {
+  border-color: #3b374e;
 }
 
 .night-mode .item-details-list,
@@ -472,9 +701,13 @@
 }
 
 .night-mode .auth-form-input {
-  background-color: #0c0920;
-  border-color: #817c95;
-  color: #faf6ef;
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #0c0920;
+}
+
+.night-mode .auth-form-input::placeholder {
+  color: #64748b;
 }
 
 .night-mode input[type='number'] {
@@ -532,6 +765,27 @@
   color: #faf6ef;
 }
 
+.roomy-dropdown-trigger:disabled {
+  background-color: #e5e7eb;
+  border-color: #cbd5e1;
+  color: #6b7280;
+  opacity: 1;
+}
+
+.roomy-dropdown-trigger:disabled svg {
+  color: #9ca3af;
+}
+
+.night-mode .roomy-dropdown-trigger:disabled {
+  background-color: #363449;
+  border-color: #5d596f;
+  color: #aaa6b8;
+}
+
+.night-mode .roomy-dropdown-trigger:disabled svg {
+  color: #827d94;
+}
+
 .night-mode .night-dropdown-menu {
   background-color: #0c0920;
   border-color: #817c95;
@@ -559,6 +813,48 @@
 .roomy-dropdown-option:focus-visible {
   background-color: #f97316;
   color: #ffffff;
+}
+
+.roomy-dropdown-scrollbar {
+  scrollbar-color: #f97316 #dbeafe;
+  scrollbar-width: thin;
+}
+
+.roomy-dropdown-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.roomy-dropdown-scrollbar::-webkit-scrollbar-track {
+  border-radius: 9999px;
+  background: #dbeafe;
+}
+
+.roomy-dropdown-scrollbar::-webkit-scrollbar-thumb {
+  min-height: 24px;
+  border: 2px solid #dbeafe;
+  border-radius: 9999px;
+  background: #f97316;
+}
+
+.roomy-dropdown-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ea580c;
+}
+
+.night-mode .roomy-dropdown-scrollbar {
+  scrollbar-color: #ff7f32 #45415f;
+}
+
+.night-mode .roomy-dropdown-scrollbar::-webkit-scrollbar-track {
+  background: #45415f;
+}
+
+.night-mode .roomy-dropdown-scrollbar::-webkit-scrollbar-thumb {
+  border-color: #45415f;
+  background: #ff7f32;
+}
+
+.night-mode .roomy-dropdown-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #ff9b5c;
 }
 
 .night-mode .roomy-dropdown-trigger:focus {
@@ -597,4 +893,23 @@
 
 .night-mode .bg-orange-500\/70 {
   background-color: rgb(249 115 22 / 70%);
+}
+
+.night-mode .account-delete-confirmation {
+  background-color: #3b2029;
+  border-color: #f87171;
+}
+
+.night-mode .account-delete-confirmation .text-red-700 {
+  color: #fecaca;
+}
+
+.night-mode .account-delete-cancel:hover {
+  background-color: #302c49;
+  border-color: #817c95;
+  color: #faf6ef;
+}
+
+.night-mode .account-delete-cancel:active {
+  background-color: #45415f;
 }

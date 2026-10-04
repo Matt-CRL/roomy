@@ -41,7 +41,7 @@ function CategoryFilterGroup({ value, onChange }) {
 
 export default function InventoryFilters({ value, onChange }) {
   return (
-    <aside className="border border-slate-300 bg-white p-4">
+    <aside className="h-fit self-start border border-slate-300 bg-white p-4">
       <h2 className="text-sm font-semibold text-slate-900">
         Filter inventory
       </h2>

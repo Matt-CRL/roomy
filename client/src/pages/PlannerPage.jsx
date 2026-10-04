@@ -4,7 +4,7 @@ import Button from '../components/common/Button'
 
 const round = (value) => Math.round(value * 100) / 100
 
-export default function PlannerPage({ room, items = [], onBack, onLoad, onSave, onGetContents, onSignOut, displayName }) {
+export default function PlannerPage({ room, items = [], onBack, onLoad, onSave, onGetContents, onSignOut, displayName, email, onUpdateDisplayName, onChangePassword, onDeleteAccount }) {
   const [layout, setLayout] = useState({ revision: 0, items: [] })
   const [selectedId, setSelectedId] = useState(null)
   const [availableId, setAvailableId] = useState('')
@@ -84,7 +84,14 @@ export default function PlannerPage({ room, items = [], onBack, onLoad, onSave, 
   return (
     <main className="min-h-screen bg-slate-50 p-6">
       <div className="mx-auto max-w-screen-2xl">
-        <AppNavbar onSignOut={onSignOut} displayName={displayName} />
+        <AppNavbar
+          onSignOut={onSignOut}
+          displayName={displayName}
+          email={email}
+          onUpdateDisplayName={onUpdateDisplayName}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
         <header className="flex flex-wrap items-center justify-between gap-4 pt-3">
           <div>
             <button type="button" onClick={onBack} className="text-sm text-slate-600 hover:text-orange-500">← Room Inventory</button>
