@@ -8,6 +8,7 @@ import { getPhotoImageStyle } from '../data/photoDisplay'
 import TiltEffect from '../components/common/TiltEffect'
 import AppNavbar from '../components/layout/AppNavbar'
 import emptyRoomIcon from '../assets/empty-room.png'
+import ImageCursorTrail from '../components/effects/ImageCursorTrail'
 
 function getItemStatus(item) {
   if (item.isStorageUnit) return `${item.storedCount ?? 0} inside`
@@ -51,6 +52,74 @@ function InventoryLoadingState({ viewMode }) {
   )
 }
 
+function StorageAddableItemButton({ item, storageName, onStore, onLoadPhoto, disabled, isBusy }) {
+  const photoRef = useRef(null)
+  const loadPhotoRef = useRef(onLoadPhoto)
+  const [imageUrl, setImageUrl] = useState(item.imageUrl ?? null)
+  loadPhotoRef.current = onLoadPhoto
+
+  useEffect(() => {
+    setImageUrl(item.imageUrl ?? null)
+  }, [item.id, item.updatedAt, item.imageUrl])
+
+  useEffect(() => {
+    if (item.imageUrl || !item.hasPhoto || !loadPhotoRef.current || !photoRef.current) return undefined
+
+    let active = true
+    let requested = false
+    const photoContainer = photoRef.current
+    const scrollContainer = photoContainer.closest('#storage-addable-items')
+
+    function requestPhoto() {
+      if (requested) return
+      requested = true
+      Promise.resolve(loadPhotoRef.current?.(item)).then((url) => {
+        if (active && url) setImageUrl(url)
+      }).catch(() => {})
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      requestPhoto()
+      return () => { active = false }
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        requestPhoto()
+        observer.disconnect()
+      }
+    }, { root: scrollContainer, rootMargin: '32px' })
+
+    observer.observe(photoContainer)
+    return () => {
+      active = false
+      observer.disconnect()
+    }
+  }, [item.id, item.updatedAt, item.hasPhoto, item.imageUrl])
+
+  return (
+    <button
+      type="button"
+      aria-label={`Add ${item.name} to ${storageName}`}
+      disabled={disabled}
+      onClick={() => onStore(item)}
+      className="storage-add-item-option flex min-h-11 w-full snap-start snap-always items-center gap-3 border-b border-slate-100 py-1 pl-1 pr-3 text-left text-xs text-slate-700 transition-colors last:border-b-0 hover:bg-orange-50 focus-visible:bg-orange-50 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70"
+    >
+      <div ref={photoRef} className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-slate-100">
+        {imageUrl ? (
+          <img src={imageUrl} alt="" draggable="false" style={getPhotoImageStyle(item)} className="h-full w-full" />
+        ) : (
+          <InventoryTypeIcon isStorageUnit={item.isStorageUnit} className="h-5 w-5 text-slate-500" />
+        )}
+      </div>
+      <span className="min-w-0 flex-1 truncate">{item.name}</span>
+      <span aria-hidden="true" className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-orange-50 text-sm font-medium leading-none text-orange-600">
+        {isBusy ? '…' : '+'}
+      </span>
+    </button>
+  )
+}
+
 export default function RoomInventoryPage({
   room,
   items = [],
@@ -59,9 +128,21 @@ export default function RoomInventoryPage({
   onEditItem,
   onOpenPlanner,
   onGetContents,
+  onGetAddableItems,
+  onLoadPhoto,
+  onUnstoreItem,
+  onStoreItem,
+  storageOptions = [],
+  storageOptionsLoading = false,
+  onViewStorage,
   onFilterChange,
   onSignOut,
   displayName,
+  email,
+  onUpdateDisplayName,
+  onChangePassword,
+  onDeleteAccount,
+  isDarkMode = false,
   isLoading = false,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
@@ -69,7 +150,17 @@ export default function RoomInventoryPage({
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({ type: 'all', categories: [] })
   const [loadedContents, setLoadedContents] = useState(null)
+  const [unstoreBusyId, setUnstoreBusyId] = useState(null)
+  const [unstoreError, setUnstoreError] = useState('')
+  const [addableItems, setAddableItems] = useState(null)
+  const [isAddItemPickerOpen, setIsAddItemPickerOpen] = useState(false)
+  const [isAddableItemsLoading, setIsAddableItemsLoading] = useState(false)
+  const [storeItemBusyId, setStoreItemBusyId] = useState(null)
+  const [storeItemError, setStoreItemError] = useState('')
+  const contentsLoadGeneration = useRef(0)
+  const addableItemsLoadGeneration = useRef(0)
   const [focusedItem, setFocusedItem] = useState(null)
+  const [openStorageContentsId, setOpenStorageContentsId] = useState(null)
   const [focusOrigin, setFocusOrigin] = useState(null)
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isInventoryClosing, setIsInventoryClosing] = useState(false)
@@ -77,9 +168,15 @@ export default function RoomInventoryPage({
   const [isInventoryAtTop, setIsInventoryAtTop] = useState(true)
   const [isInventoryAtBottom, setIsInventoryAtBottom] = useState(false)
   const inventoryCloseTimer = useRef(null)
+  const getContentsRef = useRef(onGetContents)
+  const loadPhotoRef = useRef(onLoadPhoto)
+  const filterChangeRef = useRef(onFilterChange)
+  getContentsRef.current = onGetContents
+  loadPhotoRef.current = onLoadPhoto
+  filterChangeRef.current = onFilterChange
 
   useEffect(() => {
-    if (!focusedItem) return undefined
+    if (!focusedItem?.id) return undefined
 
     const previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -95,22 +192,42 @@ export default function RoomInventoryPage({
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = previousBodyOverflow
     }
-  }, [focusedItem])
+  }, [focusedItem?.id])
 
   useEffect(() => {
-    if (!onFilterChange) return undefined
-    const timer = window.setTimeout(() => onFilterChange({ q: searchQuery, ...filters }), 250)
+    if (!filterChangeRef.current) return undefined
+    const timer = window.setTimeout(() => filterChangeRef.current?.({ q: searchQuery, ...filters }), 250)
     return () => window.clearTimeout(timer)
-  }, [searchQuery, filters, onFilterChange])
+  }, [searchQuery, filters])
 
   useEffect(() => {
     setLoadedContents(null)
-    if (!focusedItem?.isStorageUnit || !onGetContents) return undefined
+    setAddableItems(null)
+    setIsAddItemPickerOpen(false)
+    setIsAddableItemsLoading(false)
+    setStoreItemError('')
+    addableItemsLoadGeneration.current += 1
+    if (!focusedItem?.isStorageUnit || !getContentsRef.current) return undefined
     let active = true
-    onGetContents(focusedItem.id).then((result) => { if (active) setLoadedContents(result.items) })
-      .catch(() => { if (active) setLoadedContents([]) })
+    const generation = ++contentsLoadGeneration.current
+    getContentsRef.current(focusedItem.id).then((result) => {
+      if (!active || generation !== contentsLoadGeneration.current) return
+      setLoadedContents(result.items)
+      result.items.forEach((item) => {
+        if (!item.hasPhoto || item.imageUrl || !loadPhotoRef.current) return
+        loadPhotoRef.current(item).then((imageUrl) => {
+          if (!active || generation !== contentsLoadGeneration.current || !imageUrl) return
+          setLoadedContents((current) => current?.map((entry) => (
+            entry.id === item.id && entry.updatedAt === item.updatedAt
+              ? { ...entry, imageUrl }
+              : entry
+          )))
+        }).catch(() => {})
+      })
+    })
+      .catch(() => { if (active && generation === contentsLoadGeneration.current) setLoadedContents([]) })
     return () => { active = false }
-  }, [focusedItem?.id, onGetContents])
+  }, [focusedItem?.id, focusedItem?.isStorageUnit])
 
   useEffect(() => {
     window.clearTimeout(inventoryCloseTimer.current)
@@ -119,7 +236,17 @@ export default function RoomInventoryPage({
     setIsInventoryRecentering(false)
     setIsInventoryAtTop(true)
     setIsInventoryAtBottom(false)
-  }, [focusedItem])
+  }, [focusedItem?.id])
+
+  useEffect(() => {
+    if (focusedItem?.id !== openStorageContentsId || !focusedItem?.isStorageUnit) return
+    setIsInventoryClosing(false)
+    setIsInventoryRecentering(false)
+    setIsInventoryAtTop(true)
+    setIsInventoryAtBottom(false)
+    setIsInventoryOpen(true)
+    setOpenStorageContentsId(null)
+  }, [focusedItem?.id, focusedItem?.isStorageUnit, openStorageContentsId])
 
   useEffect(
     () => () => window.clearTimeout(inventoryCloseTimer.current),
@@ -143,6 +270,17 @@ export default function RoomInventoryPage({
           item.storedInside.toLowerCase() === focusedItem.name.toLowerCase(),
       )
     : [])
+  const containedItemIds = new Set(containedItems.map((item) => item.id))
+  const availableAddableItems = (addableItems ?? items)
+    .filter((item) => (
+      item.id !== focusedItem?.id &&
+      !item.isStorageUnit &&
+      !item.parentStorageId &&
+      (!item.storedInside || item.storedInside === 'Not stored') &&
+      !containedItemIds.has(item.id) &&
+      (!focusedItem?.roomId || item.roomId === focusedItem.roomId)
+    ))
+    .sort((left, right) => left.name.localeCompare(right.name))
 
   function handleAddItem() {
     onAddItem?.()
@@ -155,6 +293,97 @@ export default function RoomInventoryPage({
   function handleItemOptions(item) {
     setFocusedItem(null)
     onEditItem?.(item)
+  }
+
+  function handleViewStorage(item, event) {
+    setOpenStorageContentsId(item.id)
+    handleItemSelect(item, event)
+  }
+
+  async function handleUnstoreItem(item) {
+    if (!onUnstoreItem || unstoreBusyId) return
+
+    setUnstoreError('')
+    setUnstoreBusyId(item.id)
+    try {
+      await onUnstoreItem(item)
+      contentsLoadGeneration.current += 1
+      setLoadedContents((current) => (current ?? containedItems).filter((entry) => entry.id !== item.id))
+      setAddableItems((current) => current
+        ? [...current.filter((entry) => entry.id !== item.id), { ...item, parentStorageId: null, storedInside: null }]
+          .sort((left, right) => left.name.localeCompare(right.name))
+        : current)
+      setFocusedItem((current) => current?.id === focusedItem?.id
+        ? { ...current, storedCount: Math.max(0, (current.storedCount ?? containedItems.length) - 1) }
+        : current)
+    } catch (error) {
+      setUnstoreError(error?.message || 'Could not unstore this item. Please try again.')
+    } finally {
+      setUnstoreBusyId(null)
+    }
+  }
+
+  async function toggleAddItemPicker() {
+    if (isAddItemPickerOpen) {
+      setIsAddItemPickerOpen(false)
+      return
+    }
+
+    setIsAddItemPickerOpen(true)
+    setStoreItemError('')
+    if (addableItems) return
+
+    const generation = ++addableItemsLoadGeneration.current
+    const storageId = focusedItem?.id
+    setIsAddableItemsLoading(true)
+    try {
+      const availableItems = onGetAddableItems
+        ? await onGetAddableItems(focusedItem?.roomId)
+        : items
+      if (generation === addableItemsLoadGeneration.current && storageId === focusedItem?.id) {
+        setAddableItems(availableItems)
+      }
+    } catch (error) {
+      if (generation === addableItemsLoadGeneration.current && storageId === focusedItem?.id) {
+        setStoreItemError(error?.message || 'Could not load unstored items. Please try again.')
+      }
+    } finally {
+      if (generation === addableItemsLoadGeneration.current) setIsAddableItemsLoading(false)
+    }
+  }
+
+  async function handleStoreInOpenStorage(item) {
+    if (!onStoreItem || !focusedItem?.id || storeItemBusyId) return
+
+    const storage = focusedItem
+    setStoreItemError('')
+    setStoreItemBusyId(item.id)
+    try {
+      const savedItem = await onStoreItem(item, { id: storage.id, name: storage.name })
+      const storedItem = {
+        ...item,
+        ...(savedItem && typeof savedItem === 'object' ? savedItem : {}),
+        parentStorageId: storage.id,
+        storedInside: storage.name,
+      }
+      setLoadedContents((current) => {
+        const currentItems = current ?? containedItems
+        return currentItems.some((entry) => entry.id === storedItem.id)
+          ? currentItems
+          : [...currentItems, storedItem]
+      })
+      setFocusedItem((current) => {
+        if (current?.id !== storage.id) return current
+        const count = current.storedCount != null && Number.isFinite(Number(current.storedCount))
+          ? Number(current.storedCount)
+          : containedItems.length
+        return { ...current, storedCount: count + 1 }
+      })
+    } catch (error) {
+      setStoreItemError(error?.message || 'Could not store this item. Please try again.')
+    } finally {
+      setStoreItemBusyId(null)
+    }
   }
 
   function handleItemSelect(item, event) {
@@ -176,6 +405,15 @@ export default function RoomInventoryPage({
     }
 
     setFocusedItem(item)
+
+    if (item.hasPhoto && !item.imageUrl && onLoadPhoto) {
+      onLoadPhoto(item).then((imageUrl) => {
+        if (!imageUrl) return
+        setFocusedItem((current) => current?.id === item.id
+          ? { ...current, imageUrl }
+          : current)
+      }).catch(() => {})
+    }
   }
 
   function toggleInventorySidebar() {
@@ -212,34 +450,27 @@ export default function RoomInventoryPage({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="isolate min-h-screen bg-slate-50 p-6">
+      {!isDarkMode && <ImageCursorTrail />}
       <div className="mx-auto max-w-screen-2xl">
-        <AppNavbar onSignOut={onSignOut} displayName={displayName} />
+        <AppNavbar
+          onSignOut={onSignOut}
+          displayName={displayName}
+          location={[
+            { label: 'Rooms', onClick: onBackToRooms },
+            { label: roomName },
+          ]}
+          email={email}
+          onUpdateDisplayName={onUpdateDisplayName}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
 
         <header className="flex flex-col gap-5 pt-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="text-3xl font-bold text-slate-900">
-                Room Inventory
-              </h1>
-
-              <nav
-                aria-label="Breadcrumb"
-                className="flex items-center gap-1.5 text-base text-slate-500"
-              >
-                <button
-                  type="button"
-                  onClick={onBackToRooms}
-                  className="transition-colors hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
-                >
-                  Rooms
-                </button>
-                <span aria-hidden="true">/</span>
-              <span className="font-semibold text-orange-500">
-                {roomName}
-              </span>
-              </nav>
-            </div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              Room Inventory
+            </h1>
 
             <p className="mt-1 text-xs text-slate-500">
               {room?.itemCount ?? items.length} {(room?.itemCount ?? items.length) === 1 ? 'item' : 'items'} ·{' '}
@@ -251,7 +482,7 @@ export default function RoomInventoryPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 self-end lg:self-auto">
             <Button variant="secondary" onClick={handlePlanner}>
               Planner
             </Button>
@@ -293,7 +524,7 @@ export default function RoomInventoryPage({
                     aria-label="Search items"
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="min-h-11 w-full border border-slate-300 pl-10 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    className="min-h-11 w-full border border-slate-300 bg-white pl-10 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                   />
                 </div>
               </div>
@@ -355,10 +586,12 @@ export default function RoomInventoryPage({
                       : 'mt-6 space-y-3'
                   }
                 >
-                  <AddItemCard
-                    onClick={handleAddItem}
-                    compact={viewMode === 'list'}
-                  />
+                  {visibleItems.length > 0 && (
+                    <AddItemCard
+                      onClick={handleAddItem}
+                      compact={viewMode === 'list'}
+                    />
+                  )}
 
                   {visibleItems.map((item) => (
                     <InventoryItemCard
@@ -366,6 +599,12 @@ export default function RoomInventoryPage({
                       item={item}
                       onSelect={handleItemSelect}
                       onOptions={handleItemOptions}
+                      onLoadPhoto={onLoadPhoto}
+                      onStoreItem={onStoreItem}
+                      onUnstoreItem={onUnstoreItem}
+                      storageOptions={storageOptions}
+                      storageOptionsLoading={storageOptionsLoading}
+                      onViewStorage={handleViewStorage}
                       viewMode={viewMode}
                     />
                   ))}
@@ -377,7 +616,7 @@ export default function RoomInventoryPage({
                       No matching items
                     </h3>
                     <p className="mt-2 text-xs text-slate-500">
-                      Try a different search term.
+                      Try a different search term or filter.
                     </p>
                   </div>
                 )}
@@ -544,14 +783,83 @@ export default function RoomInventoryPage({
                 }`}
                 onScroll={handleInventoryScroll}
               >
-                <div className="space-y-3">
-                  {containedItems.length > 0 ? (
-                    containedItems.map((item) => (
+                <div className={containedItems.length < 5
+                  ? 'flex min-h-full flex-col justify-center gap-3'
+                  : 'space-y-3'}>
+                  {unstoreError && (
+                    <p role="alert" className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {unstoreError}
+                    </p>
+                  )}
+                  {focusedItem?.isStorageUnit && onGetContents && loadedContents === null ? (
+                    <p role="status" className="py-6 text-center text-xs text-slate-500">
+                      Loading storage contents…
+                    </p>
+                  ) : (
+                    <>
+                  {(onStoreItem || containedItems.length === 0) && (
+                    <div className="inventory-sidebar-card storage-add-item-card card-tilt-disabled snap-start snap-always overflow-hidden border border-slate-300 bg-white">
+                      <div className={`storage-add-item-header px-3 py-3 ${isAddItemPickerOpen ? 'border-b border-slate-200' : ''}`}>
+                        {onStoreItem && (
+                          <button
+                            type="button"
+                            aria-expanded={isAddItemPickerOpen}
+                            aria-controls="storage-addable-items"
+                            onClick={toggleAddItemPicker}
+                            className="relative flex min-h-10 w-full items-center justify-center rounded-sm px-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                          >
+                            <span>
+                              {containedItems.length === 0 ? 'Add item' : 'Add another item'}
+                            </span>
+                            <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={`absolute right-1 h-4 w-4 text-slate-400 transition-transform ${isAddItemPickerOpen ? 'rotate-180' : ''}`}>
+                              <path d="m5 7.5 5 5 5-5" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      {onStoreItem && isAddItemPickerOpen && (
+                        <section id="storage-addable-items" aria-label="Available unstored items" aria-busy={isAddableItemsLoading} className="max-h-56 overflow-y-auto">
+                          {storeItemError && (
+                            <p role="alert" className="px-3 py-2 text-xs text-red-600">
+                              {storeItemError}
+                            </p>
+                          )}
+                          {isAddableItemsLoading ? (
+                            <p role="status" className="px-3 py-3 text-center text-xs text-slate-500">
+                              Loading available items…
+                            </p>
+                          ) : storageOptionsLoading ? (
+                            <p role="status" className="px-3 py-3 text-center text-xs text-slate-500">
+                              Loading storage options…
+                            </p>
+                          ) : availableAddableItems.length > 0 ? (
+                            availableAddableItems.map((item) => (
+                              <StorageAddableItemButton
+                                key={item.id}
+                                item={item}
+                                storageName={focusedItem.name}
+                                onStore={handleStoreInOpenStorage}
+                                onLoadPhoto={onLoadPhoto}
+                                disabled={storeItemBusyId !== null || storageOptionsLoading}
+                                isBusy={storeItemBusyId === item.id}
+                              />
+                            ))
+                          ) : null}
+                          {!isAddableItemsLoading && !storageOptionsLoading && addableItems && availableAddableItems.length === 0 && !storeItemError && (
+                            <p className="px-3 py-2 text-center text-[10px] text-slate-400">
+                              No unstored items available.
+                            </p>
+                          )}
+                        </section>
+                      )}
+                    </div>
+                  )}
+                  {containedItems.length > 0 && containedItems.map((item) => (
                       <article
                         key={item.id}
                         className="inventory-sidebar-card card-tilt-disabled h-32 snap-start snap-always overflow-hidden border border-slate-300 bg-white p-2"
                       >
-                        <div className="flex h-20 items-center justify-center bg-slate-200">
+                        <div className="flex h-16 items-center justify-center bg-slate-200">
                           {item.imageUrl ? (
                             <img
                               src={item.imageUrl}
@@ -566,15 +874,26 @@ export default function RoomInventoryPage({
                             />
                           )}
                         </div>
-                        <p className="mt-2 truncate text-xs font-semibold text-slate-900">
-                          {item.name}
-                        </p>
+                        <div className="mt-2 flex min-h-6 items-center justify-between gap-2">
+                          <p className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-900">
+                            {item.name}
+                          </p>
+                          {onUnstoreItem && (
+                            <button
+                              type="button"
+                              aria-label={`Unstore ${item.name}`}
+                              title={`Unstore ${item.name}`}
+                              disabled={unstoreBusyId !== null}
+                              onClick={() => handleUnstoreItem(item)}
+                              className="night-secondary-surface flex min-h-6 shrink-0 items-center justify-center rounded-sm border border-slate-300 bg-white px-2 text-[10px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-orange-500 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {unstoreBusyId === item.id ? 'Unstoring…' : 'Unstore'}
+                            </button>
+                          )}
+                        </div>
                       </article>
-                    ))
-                  ) : (
-                    <p className="py-6 text-center text-xs text-slate-500">
-                      No items stored here yet.
-                    </p>
+                    ))}
+                    </>
                   )}
                 </div>
               </aside>

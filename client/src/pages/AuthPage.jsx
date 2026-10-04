@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { supabase } from '../api/supabase'
 import ThemeToggleButton from '../components/layout/ThemeToggleButton'
+import ImageCursorTrail from '../components/effects/ImageCursorTrail'
+import darkLogo from '../assets/dark-logo.png'
+import lightLogo from '../assets/light-logo.png'
 
 const DISPLAY_NAME_MAX_LENGTH = 40
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -11,12 +14,24 @@ function getPasswordChecks(password, confirmPassword) {
     uppercase: /[A-Z]/.test(password),
     lowercase: /[a-z]/.test(password),
     number: /\d/.test(password),
-    symbol: /[^A-Za-z0-9]/.test(password),
+    symbol: /[^A-Za-z0-9\s]/.test(password),
     matching: Boolean(confirmPassword) && password === confirmPassword,
   }
 }
 
-export default function AuthPage({ demoMode = false, onDemoSignIn }) {
+function AuthLogo({ className = '' }) {
+  const imageClassName = 'h-8 w-auto max-w-[42vw] object-contain sm:h-10'
+
+  return (
+    <div className={className}>
+      <img src={lightLogo} alt="Roomy" className={`app-navbar-logo-light ${imageClassName}`} />
+      <img src={darkLogo} alt="Roomy" className={`app-navbar-logo-dark ${imageClassName}`} />
+    </div>
+  )
+}
+
+export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: savedDarkMode, onToggleTheme }) {
+  const authLeftPanelRef = useRef(null)
   const [mode, setMode] = useState('sign-in')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
@@ -25,12 +40,13 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
   const [showPassword, setShowPassword] = useState(false)
   const [isPasswordFocused, setIsPasswordFocused] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [localIsDarkMode, setLocalIsDarkMode] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
   const isSignIn = mode === 'sign-in'
+  const isDarkMode = savedDarkMode ?? localIsDarkMode
   const passwordChecks = getPasswordChecks(password, confirmPassword)
   const passwordIsValid = Object.entries(passwordChecks)
     .filter(([key]) => key !== 'matching')
@@ -71,10 +87,10 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
       const result = isSignIn
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { display_name: displayName.trim() } },
-          })
+          email,
+          password,
+          options: { data: { display_name: displayName.trim(), roomy_theme: isDarkMode ? 'dark' : 'light' } },
+        })
 
       if (result.error) throw result.error
 
@@ -93,6 +109,28 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
     setMessage(`${label} will be connected in a later update.`)
   }
 
+  function toggleTheme() {
+    if (onToggleTheme) {
+      onToggleTheme()
+      return
+    }
+    setLocalIsDarkMode((current) => !current)
+  }
+
+  function handleAuthCursorMove(event) {
+    if (!isDarkMode || event.pointerType === 'touch') return
+
+    const panel = event.currentTarget
+    const bounds = panel.getBoundingClientRect()
+    panel.style.setProperty('--auth-cursor-glow-x', `${event.clientX - bounds.left}px`)
+    panel.style.setProperty('--auth-cursor-glow-y', `${event.clientY - bounds.top}px`)
+    panel.style.setProperty('--auth-cursor-glow-opacity', '1')
+  }
+
+  function handleAuthCursorLeave(event) {
+    event.currentTarget.style.setProperty('--auth-cursor-glow-opacity', '0')
+  }
+
   function handleGoogleSignIn() {
     if (demoMode) {
       onDemoSignIn?.()
@@ -103,23 +141,29 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
   }
 
   return (
-    <main className={`theme-transition min-h-screen text-slate-900 ${isDarkMode ? 'night-mode' : 'bg-slate-50'}`}>
-      <ThemeToggleButton isDarkMode={isDarkMode} onToggle={() => setIsDarkMode((current) => !current)} />
+    <main className={`theme-transition isolate min-h-screen text-slate-900 ${isDarkMode ? 'night-mode' : 'bg-slate-50'}`}>
+      <ThemeToggleButton isDarkMode={isDarkMode} onToggle={toggleTheme} />
       <div className="relative z-[1] grid min-h-screen lg:grid-cols-[1.15fr_0.85fr]">
-        <section className={`auth-theme-surface relative isolate hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-16 lg:py-14 xl:px-24 ${isDarkMode ? 'bg-[#0c0920]' : 'bg-[#eceae6]'}`}>
+        <section
+          ref={authLeftPanelRef}
+          onPointerMove={isDarkMode ? handleAuthCursorMove : undefined}
+          onPointerLeave={isDarkMode ? handleAuthCursorLeave : undefined}
+          className={`auth-theme-surface relative isolate hidden overflow-hidden lg:flex lg:flex-col lg:justify-between lg:px-16 lg:py-14 xl:px-24 ${isDarkMode ? 'auth-night-left-cursor-glow bg-[#0c0920]' : 'bg-[#f7f8fa]'}`}
+        >
+          {!isDarkMode && <ImageCursorTrail scopeRef={authLeftPanelRef} />}
           {isDarkMode && (
             <>
               <div aria-hidden="true" className="auth-night-left-lamp-glow" />
               <div aria-hidden="true" className="auth-night-left-gradient" />
             </>
           )}
-          <p className="relative z-[1] text-2xl font-bold tracking-tight text-orange-500">Roomy</p>
+          <AuthLogo className="relative z-[1]" />
 
-          <div className="relative z-[1] grid max-w-3xl items-center gap-6 lg:grid-cols-1 xl:grid-cols-[minmax(210px,0.8fr)_minmax(320px,1.2fr)]">
+          <div className="relative z-[1] grid max-w-3xl items-center gap-4 lg:grid-cols-1 xl:grid-cols-[minmax(210px,1.1fr)_minmax(320px,1fr)]">
             <img
               src="/roomy-mascot-transparent.png"
               alt="Roomy mascot emerging from a box"
-              className="hidden w-full max-w-xs justify-self-start object-contain lg:order-first lg:block"
+              className="hidden w-full max-w-sm justify-self-start object-contain lg:order-first lg:block"
             />
             <div>
               <h1 className="text-4xl font-bold leading-[1.08] tracking-tight text-slate-900 xl:text-5xl">
@@ -146,9 +190,9 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
           </div>
         </section>
 
-        <section className="auth-theme-surface flex min-h-screen items-start justify-center bg-white px-6 py-10 sm:px-10 lg:items-center lg:px-16 lg:py-12">
+        <section className="auth-theme-surface auth-login-panel flex min-h-screen items-start justify-center bg-white px-6 py-10 sm:px-10 lg:items-center lg:px-16 lg:py-12">
           <div className="w-full max-w-md">
-            <p className="text-3xl font-bold tracking-tight text-orange-500 lg:hidden">Roomy</p>
+            <AuthLogo className="lg:hidden" />
 
             <div className="mt-12 lg:mt-0">
               <p className="text-sm font-semibold tracking-wide text-slate-700 lg:hidden">WELCOME HOME</p>
@@ -236,20 +280,22 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
                     </button>
                   </span>
                   {!isSignIn && isPasswordFocused && (
-                    <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-normal text-slate-500" aria-label="Password requirements">
-                      {[
-                        ['length', 'At least 8 characters'],
-                        ['uppercase', 'One uppercase letter'],
-                        ['lowercase', 'One lowercase letter'],
-                        ['number', 'One number'],
-                        ['symbol', 'One symbol'],
-                      ].map(([key, label]) => (
-                        <li key={key} className={passwordChecks[key] ? 'text-emerald-600' : ''}>
-                          <span aria-hidden="true" className="mr-1">{passwordChecks[key] ? '✓' : '○'}</span>
-                          {label}
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-normal text-slate-500" aria-label="Password requirements">
+                        {[
+                          ['length', 'At least 8 characters'],
+                          ['uppercase', 'At least one uppercase letter'],
+                          ['lowercase', 'At least one lowercase letter'],
+                          ['number', 'At least one number'],
+                          ['symbol', 'At least one symbol (!, @, #, $, %, etc.)'],
+                        ].map(([key, label]) => (
+                          <li key={key} className={passwordChecks[key] ? 'text-emerald-600' : ''}>
+                            <span aria-hidden="true" className="mr-1">{passwordChecks[key] ? '✓' : '○'}</span>
+                            {label}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
                   )}
                 </label>
 
@@ -311,7 +357,7 @@ export default function AuthPage({ demoMode = false, onDemoSignIn }) {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                className="min-h-12 w-full rounded-sm border border-slate-900 bg-white px-4 py-3 text-sm font-semibold text-slate-900 transition-colors hover:border-orange-500 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+                className="auth-google-button min-h-12 w-full rounded-sm border px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
               >
                 Continue with Google
               </button>

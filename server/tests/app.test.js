@@ -13,6 +13,8 @@ test('health is public and Roomy data is protected', async () => {
     assert.deepEqual(await health.json(), { ok: true })
     const privateResponse = await fetch(`${base}/api/rooms`)
     assert.equal(privateResponse.status, 401)
+    const accountResponse = await fetch(`${base}/api/account`, { method: 'DELETE' })
+    assert.equal(accountResponse.status, 401)
   } finally {
     await new Promise((resolve) => server.close(resolve))
     await pool.end()

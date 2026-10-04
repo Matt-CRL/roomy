@@ -4,6 +4,7 @@ import Button from '../components/common/Button'
 import AppNavbar from '../components/layout/AppNavbar'
 import RoomCard from '../components/rooms/RoomCard'
 import RoomsSummary from '../components/rooms/RoomsSummary'
+import ImageCursorTrail from '../components/effects/ImageCursorTrail'
 
 const DEFAULT_ROOM_DIMENSION = 300
 const ROOM_WALL_THICKNESS_PX = 8
@@ -42,12 +43,18 @@ function snapRotation(angle) {
 
 export default function RoomsPage({
   rooms = [],
+  roomLayouts = {},
   onEnterRoom,
   onAddRoom,
   onRenameRoom,
   onDeleteRoom,
   onSignOut,
   displayName,
+  email,
+  onUpdateDisplayName,
+  onChangePassword,
+  onDeleteAccount,
+  isDarkMode = false,
   isLoading = false,
 }) {
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false)
@@ -57,8 +64,6 @@ export default function RoomsPage({
   const [addRoomError, setAddRoomError] = useState('')
   const [roomToRename, setRoomToRename] = useState(null)
   const [renameRoomName, setRenameRoomName] = useState('')
-  const [renameWidth, setRenameWidth] = useState('')
-  const [renameDepth, setRenameDepth] = useState('')
   const [renameRoomError, setRenameRoomError] = useState('')
   const [roomToDelete, setRoomToDelete] = useState(null)
   const [deleteRoomError, setDeleteRoomError] = useState('')
@@ -152,7 +157,7 @@ export default function RoomsPage({
       setBusyAction('add')
       await onAddRoom?.({
         id: roomId, name, widthCm: width, depthCm: depth,
-        itemCount: 0, storageCount: 0,
+        itemCount: 0, storageCount: 0, createdAt: new Date().toISOString(),
       })
       closeAddRoom()
     } catch (error) { setAddRoomError(error.message) }
@@ -522,8 +527,6 @@ export default function RoomsPage({
   function openRenameRoom(room) {
     setRoomToRename(room)
     setRenameRoomName(room.name)
-    setRenameWidth(room.widthCm ?? '')
-    setRenameDepth(room.depthCm ?? '')
     setRenameRoomError('')
   }
 
@@ -552,15 +555,23 @@ export default function RoomsPage({
       return
     }
 
-    try { setBusyAction('rename'); await onRenameRoom?.(roomToRename.id, name, Number(renameWidth), Number(renameDepth)); closeRenameRoom() }
+    try { setBusyAction('rename'); await onRenameRoom?.(roomToRename.id, name); closeRenameRoom() }
     catch (error) { setRenameRoomError(error.message) }
     finally { setBusyAction('') }
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className="isolate min-h-screen bg-slate-50 p-6">
+      {!isDarkMode && <ImageCursorTrail />}
       <div className="mx-auto max-w-screen-2xl">
-        <AppNavbar onSignOut={onSignOut} displayName={displayName} />
+        <AppNavbar
+          onSignOut={onSignOut}
+          displayName={displayName}
+          email={email}
+          onUpdateDisplayName={onUpdateDisplayName}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
 
         <header className="mb-8 pt-3">
           <h1 className="text-3xl font-bold text-slate-900">
@@ -592,7 +603,7 @@ export default function RoomsPage({
             <div className="grid gap-4 md:grid-cols-3" aria-busy="true" aria-label="Loading rooms">
               {[0, 1, 2].map((skeleton) => (
                 <div key={skeleton} className="animate-pulse overflow-hidden border border-slate-300 bg-white">
-                  <div className="h-28 bg-slate-200" />
+                  <div className="h-48 bg-slate-200" />
                   <div className="space-y-3 p-3">
                     <div className="h-4 w-28 bg-slate-200" />
                     <div className="h-3 w-36 bg-slate-100" />
@@ -625,6 +636,7 @@ export default function RoomsPage({
                 <RoomCard
                   key={room.id}
                   room={room}
+                  layout={roomLayouts[room.id]}
                   onEnter={onEnterRoom}
                   onRename={openRenameRoom}
                   onDelete={setRoomToDelete}
@@ -688,7 +700,7 @@ export default function RoomsPage({
                         type="number"
                         min={minimumRoomWidthCm}
                         max="100000"
-                        step="0.1"
+                        step="0.01"
                         value={newWidth}
                         onChange={(event) => {
                           const value = event.target.value
@@ -709,7 +721,7 @@ export default function RoomsPage({
                         type="number"
                         min={minimumRoomDepthCm}
                         max="100000"
-                        step="0.1"
+                        step="0.01"
                         value={newDepth}
                         onChange={(event) => {
                           const value = event.target.value
@@ -1063,15 +1075,6 @@ export default function RoomsPage({
                     className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                   />
                 </label>
-
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <label className="text-xs font-semibold text-slate-900">Width (cm)
-                    <input required type="number" min="1" max="100000" step="0.1" value={renameWidth} onChange={(event) => setRenameWidth(event.target.value)} className="room-dimension-input mt-2 min-h-11 w-full border border-slate-300 px-3 py-0 text-xs" />
-                  </label>
-                  <label className="text-xs font-semibold text-slate-900">Depth (cm)
-                    <input required type="number" min="1" max="100000" step="0.1" value={renameDepth} onChange={(event) => setRenameDepth(event.target.value)} className="room-dimension-input mt-2 min-h-11 w-full border border-slate-300 px-3 py-0 text-xs" />
-                  </label>
-                </div>
 
                 {renameRoomError && (
                   <p role="alert" className="mt-2 text-xs text-red-600">

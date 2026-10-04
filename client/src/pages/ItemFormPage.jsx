@@ -3,9 +3,13 @@ import Button from '../components/common/Button'
 import AppNavbar from '../components/layout/AppNavbar'
 import { categoryGroups } from '../data/categoryOptions'
 import { getPhotoAdjustment, getPhotoImageStyle } from '../data/photoDisplay'
+import ImageCursorTrail from '../components/effects/ImageCursorTrail'
 
 const ITEM_NAME_MAX_LENGTH = 80
 const ITEM_NOTES_MAX_LENGTH = 500
+const DEFAULT_PLANNER_DIMENSION_CM = 30
+const DEFAULT_PLANNER_OBJECT_COLOR = '#1d1b31'
+const STORAGE_UNIT_NESTING_HELP = "Storage units can't be stored inside another storage unit."
 
 function FormDropdown({
   value,
@@ -14,6 +18,8 @@ function FormDropdown({
   groups,
   ariaLabel,
   disabled = false,
+  describedBy,
+  maxMenuHeight = 180,
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef(null)
@@ -40,6 +46,7 @@ function FormDropdown({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-disabled={disabled}
+        aria-describedby={describedBy}
         disabled={disabled}
         onClick={() => setIsOpen((open) => !open)}
         onKeyDown={(event) => {
@@ -74,7 +81,8 @@ function FormDropdown({
         <div
           role="listbox"
           aria-label={ariaLabel}
-          className="night-dropdown-menu absolute left-0 top-full z-30 mt-1 max-h-64 w-full overflow-y-auto border border-slate-300 bg-white py-1 shadow-lg"
+          className="night-dropdown-menu roomy-dropdown-scrollbar absolute left-0 top-full z-30 mt-1 w-full overscroll-contain overflow-y-auto border border-slate-300 bg-white py-1 shadow-lg"
+          style={{ maxHeight: `${maxMenuHeight}px` }}
         >
           {optionGroups.map((group) => (
             <div key={group.label ?? 'options'}>
@@ -122,6 +130,11 @@ export default function ItemFormPage({
   onDeletePhoto,
   onSignOut,
   displayName,
+  email,
+  onUpdateDisplayName,
+  onChangePassword,
+  onDeleteAccount,
+  isDarkMode = false,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
   const isEditMode = Boolean(item)
@@ -256,11 +269,11 @@ export default function ItemFormPage({
     )
   }
 
-  const widthInCm = Number(form.width) > 0 ? Number(form.width) : 120
-  const depthInCm = Number(form.depth) > 0 ? Number(form.depth) : 55
+  const widthInCm = Number(form.width) > 0 ? Number(form.width) : DEFAULT_PLANNER_DIMENSION_CM
+  const depthInCm = Number(form.depth) > 0 ? Number(form.depth) : DEFAULT_PLANNER_DIMENSION_CM
   const previewScale = Math.min(180 / widthInCm, 120 / depthInCm)
-  const previewWidth = Math.max(48, Math.round(widthInCm * previewScale))
-  const previewHeight = Math.max(40, Math.round(depthInCm * previewScale))
+  const previewWidth = Math.max(2, Math.round(widthInCm * previewScale))
+  const previewHeight = Math.max(2, Math.round(depthInCm * previewScale))
   const previewStatus = form.isStorageUnit
     ? '0 inside'
     : form.storedInside && form.storedInside !== 'Not stored'
@@ -268,42 +281,28 @@ export default function ItemFormPage({
       : 'Unstored'
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6">
+    <main className={`isolate min-h-screen bg-slate-50 p-6 ${isEditMode ? 'pb-32' : ''}`}>
+      {!isDarkMode && <ImageCursorTrail />}
       <div className="mx-auto max-w-screen-2xl">
-        <AppNavbar onSignOut={onSignOut} displayName={displayName} />
+        <AppNavbar
+          onSignOut={onSignOut}
+          displayName={displayName}
+          location={[
+            { label: 'Rooms', onClick: onBackToRooms },
+            { label: roomName, onClick: onBackToInventory },
+            { label: form.name || 'Item name' },
+          ]}
+          email={email}
+          onUpdateDisplayName={onUpdateDisplayName}
+          onChangePassword={onChangePassword}
+          onDeleteAccount={onDeleteAccount}
+        />
 
         <header className="flex flex-col gap-5 pt-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <h1 className="text-3xl font-bold text-slate-900">
-                {isEditMode ? 'Edit item' : 'Add item'}
-              </h1>
-
-              <nav
-                aria-label="Breadcrumb"
-                className="flex items-center gap-1.5 text-base text-slate-500"
-              >
-                <button
-                  type="button"
-                  onClick={onBackToRooms}
-                  className="transition-colors hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
-                >
-                  Rooms
-                </button>
-                <span aria-hidden="true">/</span>
-                <button
-                  type="button"
-                  onClick={onBackToInventory}
-                  className="text-slate-500 transition-colors hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
-                >
-                  {roomName}
-                </button>
-                <span aria-hidden="true">/</span>
-                <span className="font-semibold text-orange-500">
-                  {form.name || 'Item name'}
-                </span>
-              </nav>
-            </div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {isEditMode ? 'Edit item' : 'Add item'}
+            </h1>
 
             <p className="mt-1 text-xs text-slate-500">
               {isEditMode
@@ -312,7 +311,7 @@ export default function ItemFormPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 self-end lg:self-auto">
             <Button variant="secondary" type="button" onClick={onCancel}>
               Cancel
             </Button>
@@ -468,19 +467,24 @@ export default function ItemFormPage({
             </section>
             </div>
 
-            <label className="mt-5 block text-xs font-semibold text-slate-900">
-              Item name
-              <input
-                required
-                maxLength={ITEM_NAME_MAX_LENGTH}
-                value={form.name}
-                onChange={(event) => updateField('name', event.target.value)}
-                placeholder="Item name"
-                className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-              />
-            </label>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="block text-xs font-semibold text-slate-900">
+                <span className="flex items-center justify-between gap-3">
+                  <span>Item name</span>
+                  <span className="text-[10px] font-normal text-slate-500">
+                    {form.name.length}/{ITEM_NAME_MAX_LENGTH}
+                  </span>
+                </span>
+                <input
+                  required
+                  maxLength={ITEM_NAME_MAX_LENGTH}
+                  value={form.name}
+                  onChange={(event) => updateField('name', event.target.value)}
+                  placeholder="Item name"
+                  className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                />
+              </label>
 
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-slate-900">
                 Category
                 <FormDropdown
@@ -490,7 +494,9 @@ export default function ItemFormPage({
                   ariaLabel="Item category"
                 />
               </label>
+            </div>
 
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="block text-xs font-semibold text-slate-900">
                 Storage settings
                 <span className="night-form-control mt-2 flex min-h-11 items-center gap-2 border border-slate-300 px-3 text-xs font-normal text-slate-700">
@@ -510,21 +516,26 @@ export default function ItemFormPage({
                   This item is a storage unit
                 </span>
               </label>
-            </div>
 
-            {!form.isStorageUnit && (
-              <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block text-xs font-semibold text-slate-900">
-                  Stored inside
+              <label className="block text-xs font-semibold text-slate-900">
+                Stored inside
+                <div title={form.isStorageUnit ? STORAGE_UNIT_NESTING_HELP : undefined}>
                   <FormDropdown
                     value={form.storedInside}
                     onChange={(storedInside) => updateField('storedInside', storedInside)}
                     options={storageOptions ? [{ value: 'Not stored', label: 'Not stored' }, ...storageOptions] : ['Not stored', 'Wardrobe', 'Bedside drawer', 'Under-bed box']}
                     ariaLabel="Stored inside"
+                    disabled={form.isStorageUnit}
+                    describedBy={form.isStorageUnit ? 'stored-inside-disabled-help' : undefined}
                   />
-                </label>
-              </div>
-            )}
+                </div>
+                {form.isStorageUnit && (
+                  <span id="stored-inside-disabled-help" className="sr-only">
+                    {STORAGE_UNIT_NESTING_HELP}
+                  </span>
+                )}
+              </label>
+            </div>
 
             <label className="mt-4 block text-xs font-semibold text-slate-900">
               <span className="flex items-center justify-between gap-3">
@@ -539,49 +550,9 @@ export default function ItemFormPage({
                 onChange={(event) => updateField('notes', event.target.value)}
                 placeholder="Add notes about this item"
                 rows="3"
-                className="mt-2 w-full resize-y border border-slate-300 px-3 py-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                className="roomy-dropdown-scrollbar mt-2 h-20 w-full resize-none overflow-y-auto border border-slate-300 px-3 py-2 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
               />
             </label>
-
-            <fieldset className="mt-5 border-t border-slate-200 pt-4">
-              <legend className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
-                Planner settings
-              </legend>
-
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <label className="block text-xs font-semibold text-slate-900">
-                  Width (cm)
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.width}
-                    onChange={(event) =>
-                      handleDimensionChange('width', event.target.value)
-                    }
-                    placeholder="120"
-                    className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  />
-                </label>
-
-                <label className="block text-xs font-semibold text-slate-900">
-                  Depth (cm)
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.depth}
-                    onChange={(event) =>
-                      handleDimensionChange('depth', event.target.value)
-                    }
-                    placeholder="55"
-                    className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                  />
-                </label>
-
-              </div>
-
-            </fieldset>
           </form>
 
           <aside className="space-y-5">
@@ -590,18 +561,64 @@ export default function ItemFormPage({
                 Planner preview
               </h2>
 
-              <div className="night-secondary-surface mt-4 flex min-h-40 items-center justify-center border border-slate-200 bg-slate-50">
+              <div className="room-preview-grid night-secondary-surface mt-4 flex h-48 items-center justify-center border border-slate-200 bg-slate-50">
                 <div
-                  style={{ width: `${previewWidth}px`, height: `${previewHeight}px` }}
-                  className="flex items-center justify-center border border-slate-500 bg-slate-200 px-2 text-center text-xs font-semibold text-slate-900 transition-all duration-200"
+                  style={{
+                    width: `${previewWidth}px`,
+                    height: `${previewHeight}px`,
+                    backgroundColor: DEFAULT_PLANNER_OBJECT_COLOR,
+                    color: '#ffffff',
+                  }}
+                  className="flex items-center justify-center border-2 border-slate-500 px-1.5 text-center text-[10px] font-semibold transition-all duration-200"
                 >
-                  {form.name || 'Item name'}
+                  <span className="pointer-events-none leading-tight">
+                    {form.name || 'Item name'}
+                    {form.isStorageUnit && item?.storedCount > 0 && <small className="mt-0.5 block text-[9px] font-medium">{item.storedCount} inside</small>}
+                  </span>
                 </div>
               </div>
 
               <p className="mt-4 text-[10px] text-slate-500">
-                Simple labelled top-down shape
+                Same color, outline, and label style as Room Planner
               </p>
+              <fieldset className="mt-5 border-t border-slate-200 pt-4">
+                <legend className="text-sm font-semibold text-slate-900">
+                  Planner settings
+                </legend>
+                <p className="mt-1 text-[10px] leading-4 text-slate-500">
+                  You can adjust these later in Planner Mode.
+                </p>
+
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <label className="block text-xs font-semibold text-slate-900">
+                    Width (cm)
+                    <input
+                      form="item-form"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={form.width}
+                      onChange={(event) => handleDimensionChange('width', event.target.value)}
+                      placeholder="30"
+                      className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-semibold text-slate-900">
+                    Depth (cm)
+                    <input
+                      form="item-form"
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={form.depth}
+                      onChange={(event) => handleDimensionChange('depth', event.target.value)}
+                      placeholder="30"
+                      className="mt-2 min-h-11 w-full border border-slate-300 px-3 text-xs font-normal text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                    />
+                  </label>
+                </div>
+              </fieldset>
             </section>
 
             {isEditMode && (
@@ -623,6 +640,7 @@ export default function ItemFormPage({
                       options={otherRoomOptions}
                       ariaLabel="Move item to another room"
                       disabled={otherRoomOptions.length === 0}
+                      maxMenuHeight={120}
                     />
                   </label>
 

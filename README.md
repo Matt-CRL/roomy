@@ -232,6 +232,7 @@ header. `/healthz` and `/readyz` are public.
 | POST | `/api/items/:itemId/move` | Move an item to another room. |
 | GET, PUT | `/api/rooms/:roomId/layout` | Load/save one room layout with a revision. |
 | GET, POST, DELETE | `/api/items/:itemId/photo` | Download, upload, or remove a private photo. |
+| DELETE | `/api/account` | Permanently delete the signed-in account and its Roomy data. |
 
 For a nonempty storage unit, move/delete requires `includeContents` and the
 `contentsVersion` returned by the contents route. Including items moves or
@@ -266,6 +267,7 @@ client/
   package.json              Frontend scripts and dependencies
 server/
   app.js                    Protected Roomy HTTP routes and errors
+  account.js                Protected account deletion and cleanup
   roomyRepo.js              Parameterized SQL and transactions
   auth.js                   Supabase session verification
   photos.js                 Private Storage operations and cleanup retry

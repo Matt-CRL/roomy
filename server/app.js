@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { pool } from './db/pool.js'
 import { requireUser } from './auth.js'
+import { deleteAccount } from './account.js'
 import { ApiError, asyncRoute } from './errors.js'
 import { contentsDecision, itemFilters, itemInput, layoutInput, roomInput, uuid } from './validation.js'
 import * as repo from './roomyRepo.js'
@@ -26,6 +27,11 @@ app.get('/readyz', asyncRoute(async (request, response) => {
 }))
 
 app.use('/api', requireUser)
+
+app.delete('/api/account', asyncRoute(async (request, response) => {
+  await deleteAccount(request.userId)
+  response.status(204).end()
+}))
 
 app.get('/api/categories', asyncRoute(async (request, response) => {
   response.json(await repo.listCategories(pool))
@@ -112,7 +118,7 @@ app.post('/api/items/:itemId/photo', express.raw({ type: 'image/*', limit: '5mb'
 
 app.get('/api/items/:itemId/photo', asyncRoute(async (request, response) => {
   const { bytes, type } = await photos.downloadPhoto(request.userId, uuid(request.params.itemId, 'itemId'))
-  response.set('Cache-Control', 'private, no-store').type(type).send(bytes)
+  response.set('Cache-Control', 'private, max-age=3600').type(type).send(bytes)
 }))
 
 app.delete('/api/items/:itemId/photo', asyncRoute(async (request, response) => {

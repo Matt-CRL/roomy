@@ -115,7 +115,18 @@ export function layoutInput(body, room) {
   if (!Number.isInteger(body?.revision) || body.revision < 0 || !Array.isArray(body.items) || body.items.length > 500) {
     throw badRequest('Expected revision and up to 500 layout items')
   }
-  if (room.width_cm === null || room.depth_cm === null) throw badRequest('Set room width and depth before saving a layout')
+  const includesWidth = Object.hasOwn(body, 'widthCm')
+  const includesDepth = Object.hasOwn(body, 'depthCm')
+  if (includesWidth !== includesDepth) throw badRequest('widthCm and depthCm must be set together')
+  const nextDimensions = includesWidth ? dimensions(body) : {
+    widthCm: room.width_cm === null ? null : Number(room.width_cm),
+    depthCm: room.depth_cm === null ? null : Number(room.depth_cm),
+  }
+  if (nextDimensions.widthCm === null || nextDimensions.depthCm === null) {
+    throw badRequest('Set room width and depth before saving a layout')
+  }
+  const roomWidth = Number(nextDimensions.widthCm)
+  const roomDepth = Number(nextDimensions.depthCm)
   const seen = new Set()
   const items = body.items.map((entry) => {
     const itemId = uuid(entry?.itemId, 'itemId')
@@ -127,13 +138,18 @@ export function layoutInput(body, room) {
         throw badRequest(`${key} must be a finite number with at most two decimal places`)
       }
     }
-    if (x < 0 || y < 0 || width <= 0 || depth <= 0 || x + width > Number(room.width_cm) || y + depth > Number(room.depth_cm)) {
+    if (rotation < -360 || rotation > 360) throw badRequest('Invalid rotation')
+    const radians = (rotation * Math.PI) / 180
+    const rotatedWidth = width * Math.abs(Math.cos(radians)) + depth * Math.abs(Math.sin(radians))
+    const rotatedDepth = width * Math.abs(Math.sin(radians)) + depth * Math.abs(Math.cos(radians))
+    const centerX = x + width / 2
+    const centerY = y + depth / 2
+    if (x < 0 || y < 0 || width <= 0 || depth <= 0 || centerX - rotatedWidth / 2 < -0.0001 || centerY - rotatedDepth / 2 < -0.0001 || centerX + rotatedWidth / 2 > roomWidth + 0.0001 || centerY + rotatedDepth / 2 > roomDepth + 0.0001) {
       throw badRequest('A shape is outside the room dimensions')
     }
-    if (rotation < -360 || rotation > 360) throw badRequest('Invalid rotation')
-    const color = entry.color ?? '#f97316'
+    const color = entry.color ?? '#1d1b31'
     if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) throw badRequest('Invalid color')
     return { itemId, x, y, width, depth, rotation, color }
   })
-  return { revision: body.revision, items }
+  return { revision: body.revision, widthCm: roomWidth, depthCm: roomDepth, items }
 }
