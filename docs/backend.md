@@ -14,10 +14,12 @@ second owner check; production startup rejects owner/BYPASSRLS runtime roles.
 Use Node.js 20 or newer. Follow the root [README](../README.md) and
 [security rollout runbook](../server/SECURITY-ROLLOUT.md) for Supabase project
 setup, roles, `.env` variables, the private bucket, migrations, and run
-commands. Run `npm run db:migrate` with the migration-only login. Migrations are recorded in
-`roomy_migrations` and do not clear user data. Do not apply migration 005 to
-the existing project until its isolated database tests and cutover review are
-complete.
+commands. Run `npm run db:migrate` with the migration-only login. Migrations
+are recorded in `roomy_migrations` and do not clear user data. Migration 005
+and the restricted database roles have passed checks in a separate test
+project. The original Supabase project has not been changed; applying that
+migration or switching its API credentials still requires a separate,
+reviewed production cutover.
 
 ## Main requests
 
@@ -122,9 +124,54 @@ Errors are JSON with an `error` string and optional `fields` object.
 
 The local tests run with `npm test` in `server/` and include transaction-context,
 production configuration, policy/role preflight logic, and unauthenticated
-HTTP checks. A separate isolated PostgreSQL database and two disposable Auth
-accounts are still needed to verify actual RLS execution, cross-account
-isolation, photo upload/download/cleanup, and planner save/reload end to end.
-The existing configured database currently reports RLS enabled but no policies;
-its `DATABASE_URL` role has `BYPASSRLS`. Do not claim production access control
-passed until the runbook cutover checks succeed.
+HTTP checks. These tests do not replace checks against a real database or
+manual browser testing.
+
+### Verified QA results — 2026-10-05
+
+The following checks passed against a separate Supabase test project, not
+the original project or a deployed production environment:
+
+- All migrations (001–005) were applied. Separate runtime and
+  photo-maintenance logins passed the database security preflight, including
+  expected role permissions and row-level security (RLS) policies.
+- Direct runtime SQL checks blocked access with missing or incorrect user
+  identity, including cross-owner reads and writes. Transaction-local user
+  identity cleared after rollback, and alternating concurrent API requests
+  remained isolated.
+- Two disposable Auth accounts passed room/item ownership checks.
+  Cross-account reads, updates, and deletes returned not-found, and anonymous
+  Supabase Data API access was denied. Disposable account deletion succeeded.
+- A private photo was uploaded and downloaded only by its owner. Invalid
+  image signatures were rejected; deletion queued cleanup, and the separate
+  maintenance worker removed the object. An anonymous caller could not list
+  or download the temporary Storage object.
+- Planner API checks passed decimal dimension persistence, rotated boundary
+  validation, cross-account layout denial, and rejection of stored-item and
+  duplicate placements. Stale saves preserved the existing layout; concurrent
+  saves allowed one writer and rejected the conflicting writer.
+- The API health and readiness endpoints returned `200`, and an
+  unauthenticated protected rooms request returned `401`. Configured CORS and
+  API security headers were present.
+- All 23 local server tests passed. The 7 client configuration tests and
+  earlier demo/synthetic HTTPS release builds also passed; these are not
+  evidence of complete browser coverage.
+
+Temporary test users, records, and photo objects were cleaned up after the
+checks. No credentials or session tokens are included in this documentation.
+
+### Still unverified
+
+The original Supabase project has not received the tested role/RLS cutover.
+Production hosting, credentials, Auth redirects, CORS, security headers, and
+live frontend/API/database behavior require their own review and verification.
+The isolated QA results do not establish that production access control has
+passed. Follow the [security rollout runbook](../server/SECURITY-ROLLOUT.md)
+before making changes to an existing database.
+
+Detailed browser coverage remains pending for signup/login and session
+behavior, inventory/storage workflows, photo editing, planner
+drag/resize/rotate, undo/redo, debounced autosave/manual save, and error
+recovery. Responsive layouts, keyboard accessibility, and both themes also
+need recorded results. API persistence and conflict checks do not prove those
+interactive UI behaviors work.
