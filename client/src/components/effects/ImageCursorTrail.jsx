@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 
 const TRAIL_IMAGES = [
-  '/cursor-trail/backpack.png',
-  '/cursor-trail/basketball.png',
-  '/cursor-trail/figure.png',
-  '/cursor-trail/lamp.png',
-  '/cursor-trail/phone.png',
-  '/cursor-trail/plant.png',
-  '/cursor-trail/shoes.png',
+  `${import.meta.env.BASE_URL}cursor-trail/backpack.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/basketball.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/figure.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/lamp.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/phone.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/plant.png`,
+  `${import.meta.env.BASE_URL}cursor-trail/shoes.png`,
 ]
 
 const MAX_TRAIL_IMAGES = 7

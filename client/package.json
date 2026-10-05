@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && node -e \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
+    "build:demo": "vite build --mode demo && node -e \"require('fs').copyFileSync('dist/index.html','dist/404.html')\"",
+    "test:config": "node --test",
     "preview": "vite preview"
   },
   "dependencies": {

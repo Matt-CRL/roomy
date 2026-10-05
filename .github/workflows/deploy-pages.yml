@@ -6,19 +6,19 @@ name: Deploy client to GitHub Pages
 # TURN PAGES ON ONCE, BY HAND, or this runs green and publishes nothing:
 #   Settings > Pages > Build and deployment > Source: GitHub Actions
 #
-# CONFIG. Everything passed in below ends up inside the built JavaScript, which
-# anyone can download and read. That is fine for the two variables here, and it
-# is why they are repository VARIABLES rather than secrets:
+# CONFIG. The VITE_ values below are embedded in browser JavaScript and are
+# public by design. Use repository VARIABLES (never put server secrets here).
+# The build fails closed if real-mode values are missing or invalid.
 #
 #   Settings > Secrets and variables > Actions > Variables
-#     VITE_USE_MOCK_API   "false" once your Express API is deployed. Anything
-#                         else, including leaving it unset, keeps the simulated
-#                         backend on, which is the safe default for a template.
-#     VITE_API_BASE_URL   https://your-api.onrender.com   (no trailing slash)
+#     VITE_USE_MOCK_API                 false
+#     VITE_API_BASE_URL                 https://your-api.example.com
+#     VITE_SUPABASE_URL                 https://your-project.supabase.co
+#     VITE_SUPABASE_PUBLISHABLE_KEY     sb_publishable_...
 #
-# Never put an API key, a password or a database URL in a VITE_ variable. Those
-# belong in your SERVER's environment, and the server is not built here. See
-# page 2 and page 16 of content/extending-your-app.
+# The publishable key is intentionally public. Never put Supabase secret keys,
+# database credentials, access tokens, or passwords in a VITE_ variable. Those
+# belong only in the API server environment.
 
 on:
   push:
@@ -76,6 +76,11 @@ jobs:
         working-directory: client
         run: npm ci
 
+      - name: Test release configuration and routing
+        if: steps.check.outputs.ready == 'true'
+        working-directory: client
+        run: npm run test:config
+
       - name: Build
         if: steps.check.outputs.ready == 'true'
         working-directory: client
@@ -87,6 +92,8 @@ jobs:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
           VITE_USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API }}
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
         # npm run build also copies index.html to 404.html. GitHub Pages serves
         # 404.html for any path it cannot find, which is how a single-page app
         # survives someone refreshing on a nested route.

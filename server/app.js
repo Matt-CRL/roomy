@@ -7,123 +7,143 @@ import { ApiError, asyncRoute } from './errors.js'
 import { contentsDecision, itemFilters, itemInput, layoutInput, roomInput, uuid } from './validation.js'
 import * as repo from './roomyRepo.js'
 import * as photos from './photos.js'
+import { withUserContext } from './db/userContext.js'
+import { runtimeDatabaseIssues } from './db/preflight.js'
 
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean)
 
 export const app = express()
 app.disable('x-powered-by')
+app.use((request, response, next) => {
+  response.set({
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+    'Cross-Origin-Resource-Policy': 'same-site',
+    'Content-Security-Policy': "default-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+  })
+  if (process.env.NODE_ENV === 'production' && process.env.PUBLIC_HTTPS === 'true') {
+    response.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
+  next()
+})
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json({ limit: '100kb' }))
 
 app.get('/healthz', (request, response) => response.json({ ok: true }))
 app.get('/readyz', asyncRoute(async (request, response) => {
   try {
-    await pool.query('SELECT 1')
-    response.json({ ok: true, db: 'up' })
+    const issues = await runtimeDatabaseIssues(pool)
+    if (issues.length) return response.status(503).json({ ok: false })
+    response.json({ ok: true })
   } catch {
-    response.status(503).json({ ok: false, db: 'down' })
+    response.status(503).json({ ok: false })
   }
 }))
 
 app.use('/api', requireUser)
 
-app.delete('/api/account', asyncRoute(async (request, response) => {
-  await deleteAccount(request.userId)
-  response.status(204).end()
+const jsonResult = (body, status = 200) => ({ body, status })
+const emptyResult = { status: 204 }
+const binaryResult = (body, type) => ({ body, type, status: 200 })
+
+const privateRoute = (handler) => asyncRoute(async (request, response) => {
+  const result = await withUserContext(pool, request.userId, async (db) => {
+    request.db = db
+    return handler(request)
+  })
+  if (result.status === 204) return response.status(204).end()
+  if (result.type) {
+    return response.status(result.status).set('Cache-Control', 'private, max-age=3600').type(result.type).send(result.body)
+  }
+  return response.status(result.status).json(result.body)
+})
+
+app.delete('/api/account', privateRoute(async (request) => {
+  await deleteAccount(request.userId, request.db)
+  return emptyResult
 }))
 
-app.get('/api/categories', asyncRoute(async (request, response) => {
-  response.json(await repo.listCategories(pool))
+app.get('/api/categories', privateRoute(async (request) => jsonResult(await repo.listCategories(request.db))))
+
+app.get('/api/rooms', privateRoute(async (request) => jsonResult(await repo.listRooms(request.db, request.userId))))
+
+app.post('/api/rooms', privateRoute(async (request) =>
+  jsonResult(await repo.createRoom(request.db, request.userId, roomInput(request.body)), 201)))
+
+app.get('/api/rooms/:roomId', privateRoute(async (request) => {
+  const room = await repo.ownedRoom(request.db, request.userId, uuid(request.params.roomId, 'roomId'))
+  return jsonResult(repo.roomJson(room))
 }))
 
-app.get('/api/rooms', asyncRoute(async (request, response) => {
-  response.json(await repo.listRooms(pool, request.userId))
-}))
+app.patch('/api/rooms/:roomId', privateRoute(async (request) =>
+  jsonResult(await repo.updateRoom(request.db, request.userId,
+    uuid(request.params.roomId, 'roomId'), roomInput(request.body, true)))))
 
-app.post('/api/rooms', asyncRoute(async (request, response) => {
-  response.status(201).json(await repo.createRoom(pool, request.userId, roomInput(request.body)))
-}))
-
-app.get('/api/rooms/:roomId', asyncRoute(async (request, response) => {
-  const room = await repo.ownedRoom(pool, request.userId, uuid(request.params.roomId, 'roomId'))
-  response.json(repo.roomJson(room))
-}))
-
-app.patch('/api/rooms/:roomId', asyncRoute(async (request, response) => {
-  response.json(await repo.updateRoom(pool, request.userId,
-    uuid(request.params.roomId, 'roomId'), roomInput(request.body, true)))
-}))
-
-app.delete('/api/rooms/:roomId', asyncRoute(async (request, response) => {
-  const paths = await repo.deleteRoom(pool, request.userId, uuid(request.params.roomId, 'roomId'))
+app.delete('/api/rooms/:roomId', privateRoute(async (request) => {
+  const paths = await repo.deleteRoom(request.db, request.userId, uuid(request.params.roomId, 'roomId'))
   if (paths.length) console.warn(`Room deleted with ${paths.length} photo objects pending cleanup`)
-  response.status(204).end()
+  return emptyResult
 }))
 
-app.get('/api/rooms/:roomId/items', asyncRoute(async (request, response) => {
-  response.json(await repo.listItems(pool, request.userId,
-    uuid(request.params.roomId, 'roomId'), itemFilters(request.query)))
-}))
+app.get('/api/rooms/:roomId/items', privateRoute(async (request) =>
+  jsonResult(await repo.listItems(request.db, request.userId,
+    uuid(request.params.roomId, 'roomId'), itemFilters(request.query)))))
 
-app.post('/api/rooms/:roomId/items', asyncRoute(async (request, response) => {
-  response.status(201).json(await repo.createItem(pool, request.userId,
-    uuid(request.params.roomId, 'roomId'), itemInput(request.body)))
-}))
+app.post('/api/rooms/:roomId/items', privateRoute(async (request) =>
+  jsonResult(await repo.createItem(request.db, request.userId,
+    uuid(request.params.roomId, 'roomId'), itemInput(request.body)), 201)))
 
-app.get('/api/items/:itemId', asyncRoute(async (request, response) => {
-  response.json(await repo.getItem(pool, request.userId, uuid(request.params.itemId, 'itemId')))
-}))
+app.get('/api/items/:itemId', privateRoute(async (request) =>
+  jsonResult(await repo.getItem(request.db, request.userId, uuid(request.params.itemId, 'itemId')))))
 
-app.patch('/api/items/:itemId', asyncRoute(async (request, response) => {
-  response.json(await repo.updateItem(pool, request.userId,
-    uuid(request.params.itemId, 'itemId'), itemInput(request.body, true)))
-}))
+app.patch('/api/items/:itemId', privateRoute(async (request) =>
+  jsonResult(await repo.updateItem(request.db, request.userId,
+    uuid(request.params.itemId, 'itemId'), itemInput(request.body, true)))))
 
-app.get('/api/items/:itemId/contents', asyncRoute(async (request, response) => {
-  response.json(await repo.storageContents(pool, request.userId, uuid(request.params.itemId, 'itemId')))
-}))
+app.get('/api/items/:itemId/contents', privateRoute(async (request) =>
+  jsonResult(await repo.storageContents(request.db, request.userId, uuid(request.params.itemId, 'itemId')))))
 
-app.post('/api/items/:itemId/move', asyncRoute(async (request, response) => {
+app.post('/api/items/:itemId/move', privateRoute(async (request) => {
   const targetRoomId = uuid(request.body?.targetRoomId, 'targetRoomId')
   const decision = request.body?.contentsVersion === undefined && request.body?.includeContents === undefined
     ? null : contentsDecision(request.body)
-  response.json(await repo.moveItem(pool, request.userId,
+  return jsonResult(await repo.moveItem(request.db, request.userId,
     uuid(request.params.itemId, 'itemId'), targetRoomId, decision))
 }))
 
-app.delete('/api/items/:itemId', asyncRoute(async (request, response) => {
+app.delete('/api/items/:itemId', privateRoute(async (request) => {
   const body = request.body ?? {}
   const decision = body.contentsVersion === undefined && body.includeContents === undefined
     ? null : contentsDecision(body)
-  const paths = await repo.deleteItem(pool, request.userId, uuid(request.params.itemId, 'itemId'), decision)
+  const paths = await repo.deleteItem(request.db, request.userId, uuid(request.params.itemId, 'itemId'), decision)
   if (paths.length) console.warn(`Item deleted with ${paths.length} photo objects pending cleanup`)
-  response.status(204).end()
+  return emptyResult
 }))
 
-app.get('/api/rooms/:roomId/layout', asyncRoute(async (request, response) => {
-  response.json(await repo.getLayout(pool, request.userId, uuid(request.params.roomId, 'roomId')))
-}))
+app.get('/api/rooms/:roomId/layout', privateRoute(async (request) =>
+  jsonResult(await repo.getLayout(request.db, request.userId, uuid(request.params.roomId, 'roomId')))))
 
-app.put('/api/rooms/:roomId/layout', asyncRoute(async (request, response) => {
-  response.json(await repo.saveLayout(pool, request.userId, uuid(request.params.roomId, 'roomId'),
-    (room) => layoutInput(request.body, room)))
-}))
+app.put('/api/rooms/:roomId/layout', privateRoute(async (request) =>
+  jsonResult(await repo.saveLayout(request.db, request.userId, uuid(request.params.roomId, 'roomId'),
+    (room) => layoutInput(request.body, room)))))
 
-app.post('/api/items/:itemId/photo', express.raw({ type: 'image/*', limit: '5mb' }), asyncRoute(async (request, response) => {
+app.post('/api/items/:itemId/photo', express.raw({ type: 'image/*', limit: '5mb' }), privateRoute(async (request) => {
   const result = await photos.uploadPhoto(request.userId, uuid(request.params.itemId, 'itemId'),
-    request.body, request.headers['content-type'])
-  response.status(201).json(result)
+    request.body, request.headers['content-type'], request.db)
+  return jsonResult(result, 201)
 }))
 
-app.get('/api/items/:itemId/photo', asyncRoute(async (request, response) => {
-  const { bytes, type } = await photos.downloadPhoto(request.userId, uuid(request.params.itemId, 'itemId'))
-  response.set('Cache-Control', 'private, max-age=3600').type(type).send(bytes)
+app.get('/api/items/:itemId/photo', privateRoute(async (request) => {
+  const { bytes, type } = await photos.downloadPhoto(request.userId, uuid(request.params.itemId, 'itemId'), request.db)
+  return binaryResult(bytes, type)
 }))
 
-app.delete('/api/items/:itemId/photo', asyncRoute(async (request, response) => {
-  await photos.deletePhoto(request.userId, uuid(request.params.itemId, 'itemId'))
-  response.status(204).end()
+app.delete('/api/items/:itemId/photo', privateRoute(async (request) => {
+  await photos.deletePhoto(request.userId, uuid(request.params.itemId, 'itemId'), request.db)
+  return emptyResult
 }))
 
 app.use((request, response) => response.status(404).json({ error: 'No such route' }))

@@ -10,6 +10,7 @@ import * as api from './api'
 import { supabase } from './api/supabase'
 import DemoNotice from './components/DemoNotice'
 import { compressImage } from './utils/compressImage'
+import { fromPublicPath, toPublicPath } from './utils/appBasePath'
 
 const ROOMS_STORAGE_KEY = 'roomy:rooms'
 const ITEMS_STORAGE_KEY = 'roomy:items'
@@ -44,7 +45,7 @@ function decodeRoutePart(value) {
 }
 
 function readAppRoute(pathname = window.location.pathname) {
-  const parts = pathname.split('/').filter(Boolean).map(decodeRoutePart)
+  const parts = fromPublicPath(pathname).split('/').filter(Boolean).map(decodeRoutePart)
 
   if (parts[0] === 'login') return { page: 'login', roomId: null, itemId: null }
   if (parts[0] !== 'rooms') return { page: 'rooms', roomId: null, itemId: null }
@@ -600,7 +601,7 @@ export default function App() {
 
   function goToRoute(page, { roomId = selectedRoomId, itemId = null, replace = false } = {}) {
     const nextPath = appPath(page, roomId, itemId)
-    const nextUrl = `${nextPath}${window.location.search}`
+    const nextUrl = `${toPublicPath(nextPath)}${window.location.search}`
     const method = replace ? 'replaceState' : 'pushState'
 
     window.history[method]({ page, roomId, itemId }, '', nextUrl)
