@@ -298,7 +298,7 @@ export function PlannerLoadingScreen({ roomName, isVisible = true }) {
   return (
     <div role="status" aria-live="polite" className={`fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black px-6 text-center text-white transition-opacity duration-200 ease-out ${isVisible ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
       <video autoPlay loop muted playsInline preload="auto" aria-hidden="true" className="mb-5 h-auto w-auto max-h-[55vh] max-w-md object-contain">
-        <source src="/roomy-loading.mp4" type="video/mp4" />
+        <source src={`${import.meta.env.BASE_URL}roomy-loading.mp4`} type="video/mp4" />
       </video>
       <p className="text-lg font-semibold">Entering room planner…</p>
       {roomName && <p className="mt-1 text-sm text-slate-300">Preparing {roomName}</p>}

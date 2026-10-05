@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { badRequest, conflict, notFound } from './errors.js'
+import { hasUserContext } from './db/userContext.js'
 
 const roomColumns = 'id, owner_id, name, width_cm, depth_cm, created_at, updated_at'
 const itemColumns = 'id, owner_id, room_id, name, category, notes, is_storage_unit, parent_storage_id, width_cm, depth_cm, photo_path, photo_fit, photo_position, photo_position_x, photo_position_y, photo_zoom, created_at, updated_at'
@@ -42,6 +43,19 @@ export const itemJson = (row) => row && ({
 })
 
 export async function transaction(pool, work) {
+  if (hasUserContext(pool)) {
+    const savepoint = `roomy_nested_${++savepointSequence}`
+    await pool.query(`SAVEPOINT ${savepoint}`)
+    try {
+      const result = await work(pool)
+      await pool.query(`RELEASE SAVEPOINT ${savepoint}`)
+      return result
+    } catch (error) {
+      await pool.query(`ROLLBACK TO SAVEPOINT ${savepoint}`)
+      await pool.query(`RELEASE SAVEPOINT ${savepoint}`)
+      throw error
+    }
+  }
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -55,6 +69,8 @@ export async function transaction(pool, work) {
     client.release()
   }
 }
+
+let savepointSequence = 0
 
 export async function ownedRoom(db, ownerId, roomId, lock = false) {
   const result = await db.query(`SELECT ${roomColumns} FROM roomy_rooms WHERE owner_id=$1 AND id=$2 ${lock ? 'FOR UPDATE' : ''}`, [ownerId, roomId])

@@ -1,11 +1,26 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import { createPool } from './pool.js'
+import { createPool } from './create-pool.js'
 
 const directory = fileURLToPath(new URL('./migrations/', import.meta.url))
 const files = readdirSync(directory).filter((name) => /^\d+_.*\.sql$/.test(name)).sort()
-const pool = createPool(process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL)
+const migrationUrl = process.env.MIGRATION_DATABASE_URL
+if (process.env.NODE_ENV === 'production') {
+  if (!migrationUrl) throw new Error('MIGRATION_DATABASE_URL is required for production migrations')
+  let migrationUser
+  let runtimeUser
+  try {
+    migrationUser = new URL(migrationUrl).username
+    runtimeUser = new URL(process.env.DATABASE_URL).username
+  } catch {
+    throw new Error('MIGRATION_DATABASE_URL and DATABASE_URL must be valid PostgreSQL URLs')
+  }
+  if (!migrationUser || migrationUser === runtimeUser) {
+    throw new Error('MIGRATION_DATABASE_URL must use a separate migration login from DATABASE_URL')
+  }
+}
+const pool = createPool(migrationUrl || process.env.DATABASE_URL)
 const client = await pool.connect()
 
 try {
@@ -33,7 +48,7 @@ try {
   console.log('Database migrations current')
 } catch (error) {
   await client.query('ROLLBACK')
-  console.error('Migration failed:', error)
+  console.error('Migration failed:', error.code || 'database error')
   process.exitCode = 1
 } finally {
   client.release()
