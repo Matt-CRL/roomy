@@ -4,24 +4,31 @@ Roomy is a personal room inventory and approximate 2D layout-planning web
 application. It helps people record belongings, remember where items are
 stored, and organise rooms while rearranging or decorating their space.
 
-> **Current progress:** Demo mode still works in the browser. The Roomy Express
-> API, PostgreSQL migrations, Supabase authentication integration, private photo
-> routes, and saved planner are implemented locally. Supabase has been configured
-> for local testing; production deployment is still pending. The latest
-> read-only database check found RLS enabled but no Roomy policies, and the
-> configured API database login is an RLS-bypass admin role. Do not expose the
-> current API configuration; see [the security rollout runbook](server/SECURITY-ROLLOUT.md).
+> **Status — 2026-10-05:** The main features are implemented and available
+> locally. Backend and database security checks have passed in a separate
+> test environment. Full browser testing and production deployment are still
+> in progress; this is not yet a production-ready release.
 
 **Live site:** Not deployed yet
-**API:** Implemented locally; live configuration pending
-**Demo video:** To be added
+**API:** Runs locally; no public API deployment yet
+
+## Start here
+
+- To explore the interface without an account or database, follow
+  [Quick start: demo mode](#quick-start-demo-mode).
+- To work on authentication, saved account data, or photos, follow
+  [Run with Supabase and PostgreSQL](#run-with-supabase-and-postgresql).
+- To change the application, see [Working on Roomy](#working-on-roomy).
+- For request bodies and validation rules, see the
+  [backend API documentation](docs/backend.md).
 
 ## What it does
 
 Roomy is designed for people who want a visual and organised way to keep track
 of belongings in bedrooms and other personal rooms. Users can create rooms,
-record items, identify storage relationships, search an inventory, and preview
-basic item dimensions for future room-planning features.
+record items and photos, identify storage relationships, search an inventory,
+and arrange labelled shapes in a saved 2D room layout. The planner supports
+moving, resizing, rotating, appearance settings, undo/redo, and automatic saves.
 
 ## Built with
 
@@ -36,12 +43,13 @@ basic item dimensions for future room-planning features.
 
 - Node.js 20+, Express, PostgreSQL, and `pg`
 - Supabase for PostgreSQL hosting, email/password authentication, and private photos
-- Hosting: frontend/API provider selection pending
+- Intended frontend host: Vercel; deployment has not been verified
+- API hosting/configuration: pending
 
 The real mode uses the Express API for inventory and layouts. External services
 must be configured before that mode can run.
 
-## Setup and installation
+## Quick start: demo mode
 
 ### Requirements
 
@@ -49,7 +57,8 @@ must be configured before that mode can run.
 - npm
 - Git
 
-Demo mode does not require PostgreSQL, Supabase, or an API server. Real mode does.
+Demo mode needs only the client. It does not require an account, PostgreSQL,
+Supabase, or an API server.
 
 ### Clone and install
 
@@ -58,15 +67,14 @@ git clone https://github.com/Matt-CRL/roomy.git
 cd roomy\client
 npm ci
 Copy-Item .env.example .env
-
-cd ..\server
-npm ci
-Copy-Item .env.example .env
+npm run dev
 ```
 
-On macOS or Linux, use `cp .env.example .env` instead of `Copy-Item`.
+These commands assume a new checkout. If `.env` already exists, keep it and
+edit its values rather than copying over it. On macOS or Linux, use
+`cd roomy/client` and `cp .env.example .env`.
 
-## Demo mode
+### How demo mode works
 
 Demo mode is an optional browser-only path for developing or demonstrating the
 interface without PostgreSQL, Supabase, or an API server. Room and item state
@@ -77,14 +85,6 @@ Set `VITE_USE_MOCK_API=true` in `client/.env` for local demo mode. Production
 release builds reject demo mode and require the real API/Auth configuration;
 use `npm run build:demo` only when an intentional demo artifact is wanted.
 
-## Running it yourself
-
-From the `client/` directory, run:
-
-```powershell
-npm run dev
-```
-
 Open the address printed by Vite, normally:
 
 ```text
@@ -92,9 +92,8 @@ http://localhost:5173
 ```
 
 In demo mode, the first screen opens the Bedroom 1 inventory. A new real
-account opens the Rooms page so the user can create their first room. Use the navigation to visit
-the Rooms page, enter a room, add or edit items, and switch between grid and
-list views.
+account opens the Rooms page so the user can create their first room. Visit
+Rooms, enter a room, add or edit items, and switch between grid and list views.
 
 To build an intentional browser-only demo:
 
@@ -104,10 +103,26 @@ npm run preview
 ```
 
 `npm run build` is a release build. It fails unless real mode is explicitly
-selected and the API/Auth URLs and public Supabase key are valid HTTPS values.
+selected, the API/Auth URLs use valid public HTTPS endpoints, and the Supabase
+browser key is a valid publishable or supported legacy anon key.
 This prevents an unset or mistyped mode from publishing a demo as production.
 
-### Run with Supabase and PostgreSQL
+## Run with Supabase and PostgreSQL
+
+Use your own development Supabase project, not someone else's credentials or
+a database containing important data. This mode needs both the client and
+server. From the repository root, install the server dependencies and create
+its environment file if it does not already exist:
+
+```powershell
+cd server
+npm ci
+Copy-Item .env.example .env
+```
+
+If you skipped the demo quick start, also install the client dependencies and
+copy `client/.env.example` to `client/.env`. All commands below assume the
+repository has already been cloned.
 
 1. Create a Supabase project. Enable email/password authentication and create
    a **private** Storage bucket named `roomy-item-photos`. Keep the database
@@ -119,12 +134,19 @@ This prevents an unset or mistyped mode from publishing a demo as production.
    credentials out of the running API host.
 3. In `client/.env`, set `VITE_USE_MOCK_API=false`, `VITE_API_BASE_URL`,
    `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`.
-4. For a new disposable test database, run `npm run db:migrate` from `server/`
-   using the migration-only credential. **Do not run the pending RLS migration
-   against the existing Supabase project until the isolated RLS/role tests and
-   cutover review in `server/SECURITY-ROLLOUT.md` are complete.** The migration
-   runner tracks applied files and does not seed or erase user data.
-5. In one terminal, run `npm run dev` from `server/`. In another, run
+   The client and server must use the same Supabase project. For local use,
+   set `VITE_API_BASE_URL=http://localhost:3000`,
+   `CORS_ORIGINS=http://localhost:5173`, and `NODE_ENV=development`.
+4. Follow the role setup and migration procedure in
+   [the security rollout runbook](server/SECURITY-ROLLOUT.md). For a new
+   database, run `npm run db:migrate` from `server/` using the migration-only
+   credential. Review the cutover procedure before migrating an existing
+   database. The migration runner tracks applied files and does not seed or
+   erase user data.
+5. From `server/`, run `npm run db:preflight` to check database permissions
+   without changing data. Resolve any reported issues before relying on the
+   security setup.
+6. In one terminal, run `npm run dev` from `server/`. In another, run
    `npm run dev` from `client/`. Open `http://localhost:5173` and sign up.
 
 If Supabase requires email confirmation, use the link it emails you before
@@ -132,15 +154,15 @@ signing in. The first real account starts with no rooms. Add a room with width
 and depth in centimeters, then add items. `/healthz` checks the API process;
 `/readyz` checks the database role, RLS flags/policies, and runtime grants. It
 intentionally returns unavailable until the restricted runtime setup is
-complete.
-
-The old `server/db/schema.sql` and `seed.sql` are from the sightings template
-and must not be run for Roomy. Migration and role instructions are in
-`server/SECURITY-ROLLOUT.md`.
+complete. Database role setup is an administrative step: copying the example
+environment file alone does not create those roles or set their passwords.
 
 ## Environment variables
 
-The demo needs no secrets. The real application needs these variables:
+Copy the placeholders from [client/.env.example](client/.env.example) and
+[server/.env.example](server/.env.example), then replace them with your own
+settings. `VITE_` variables belong in `client/.env`; all other variables below
+belong in `server/.env`. Demo mode needs only `VITE_USE_MOCK_API=true`.
 
 | Variable | Example value | Purpose |
 | --- | --- | --- |
@@ -161,6 +183,11 @@ The demo needs no secrets. The real application needs these variables:
 | `PUBLIC_HTTPS` | `true` | Confirms production HTTPS at the host/proxy and enables HSTS. |
 | `PORT` | `3000` | Optional local API port; hosting providers normally set it. |
 
+`PUBLIC_HTTPS` is for a production HTTPS host, not the local HTTP server.
+The cleanup connection is required in production and for the full database
+preflight. The certificate path is needed only if the database certificate
+is not already trusted.
+
 Values beginning with `VITE_` are compiled into the frontend and are public.
 Never put passwords, database connection strings, or private keys in them.
 
@@ -174,10 +201,13 @@ not.
 ### Rooms
 
 - View room, item, and storage summaries.
-- Add a room with a custom name.
+- Add a room with a custom name and width/depth in centimeters, including up
+  to two decimal places. The room preview supports adjusting its dimensions.
 - Enter a room by double-clicking its room card on desktop or tapping it on mobile.
 - Rename or delete a room from its three-dot menu.
 - Deleting a room also removes the items assigned to it after confirmation.
+- Room cards show the saved planner layout, item/storage counts, and the last
+  updated date and time, or creation time when no layout has been saved.
 
 ### Room inventory
 
@@ -192,20 +222,48 @@ not.
 - Switch between grid and list views.
 - Open an item focus preview by selecting an inventory card.
 - Open a storage unit’s separate inventory sidebar to view stored items.
+- Store or unstore items from their menus. Storage choices include thumbnails;
+  storage units cannot be placed inside other storage units.
+- Add available unstored items from an open storage inventory, or unstore its
+  contents directly. Empty states explain when no unstored items are available.
+- List rows include item thumbnails alongside the name and category.
 
 ### Item form and planner preview
 
-- Item names are limited to 80 characters.
-- Notes are limited to 500 characters.
-- Width and depth values update the basic rectangle preview.
+- Item names are limited to 80 characters and notes to 500, with character
+  counters. Notes and planner adjustments are optional.
+- Choose a category and storage relationship; selecting a storage unit
+  disables the Stored inside field and explains why.
+- Upload a JPEG, PNG, or WebP photo (up to 5 MB), then adjust its crop and zoom
+  while previewing the inventory card.
+- The planner preview and settings share one card. Width, depth, and color
+  match the planner's object appearance and can be adjusted there later.
+- New planner objects default to 30 × 30 cm and color `#1d1b31`.
 - Width and depth cannot be set below 1 cm.
 - Storage units display their stored-item count.
 - Regular items display whether they are stored or unstored.
 
+### Room planner
+
+- Place available unstored room items and storage units in a 2D layout.
+  Stored items are represented through their storage unit's contents.
+- Drag, resize, and rotate shapes; edit Size, Position, and Appearance in
+  the inspector. Shapes are constrained to the room's dimensions.
+- Pan and zoom the view, reset the view, and undo or redo layout edits.
+- Add a temporary 50 × 30 cm person guide for scale; it is excluded from saves.
+- Changes save automatically after a pause in editing. Save now remains
+  available, with a last-saved time and feedback when a save fails.
+- Saved layouts load when reopening the planner and appear in room previews.
+  Saving updated dimensions also updates the room and placed item's dimensions.
+- Layout revisions detect stale or simultaneous saves; a failed save keeps
+  the local draft available for review.
+
 ### Theme
 
 Use the light-switch control at the top-right of the page to toggle between
-Light mode and Night mode.
+Light mode and Night mode. The themes use matching logos and background cursor
+effects: a sticker trail in Light mode and a warm glow in Night mode. Effects
+sit behind page content; the sticker trail is disabled in the planner.
 
 ### Data behavior
 
@@ -237,16 +295,31 @@ deletes them with the storage unit. Excluding items leaves them unstored in
 their original room. A changed version returns `409`, prompting a fresh review.
 Requests use JSON except photo upload, which uses raw JPEG/PNG/WebP bytes.
 
+For example, list the signed-in user's rooms using their Supabase session
+access token:
+
+```http
+GET /api/rooms
+Authorization: Bearer <user-access-token>
+```
+
+An absent or expired session returns `401`; an absent or unowned record
+returns `404`; stale layout or storage decisions return `409`. Request
+examples and validation details are in [docs/backend.md](docs/backend.md).
+
 ## Deploying
 
-No final live deployment has been verified. The repository's frontend workflow
-targets GitHub Pages and uses the repository subpath, but the API host remains
-unselected. The frontend release build now requires explicit real-mode
-configuration and the workflow expects the four public `VITE_` repository
-variables listed above. The API must use restricted runtime/maintenance roles,
-pass `npm run db:preflight`, and have its HTTPS origin added to CORS. Two-account
-isolation and production-host checks are still pending. The live site, API, and
-demo video links will be added after deployment.
+Vercel is the intended frontend host; no final live deployment has been
+verified. The repository still contains a GitHub Pages workflow from the
+current code setup, and Vercel configuration has not yet replaced it. The API
+hosting/configuration and production Auth/CORS settings remain to be reviewed.
+
+Release builds require explicit real-mode configuration and the public
+`VITE_` settings above. The production API must use restricted runtime and
+maintenance roles and pass `npm run db:preflight`. Those roles and two-account
+API isolation have been verified in the isolated QA project. The original
+Supabase project still needs its own reviewed cutover and host checks. Live
+site/API links will be added after deployment is verified.
 
 ## Project structure
 
@@ -258,6 +331,9 @@ client/
     components/             Reusable room, item, layout, and common UI pieces
     assets/                 Local fallback icons and images
     api/                    Matching demo/HTTP adapters and Supabase Auth client
+    utils/appBasePath.js    Root/subpath navigation helpers
+  buildConfig.js            Release configuration validation
+  tests/                    Build configuration and base-path checks
   .env.example              Frontend environment variable template
   package.json              Frontend scripts and dependencies
 server/
@@ -268,8 +344,12 @@ server/
   photos.js                 Private Storage operations and cleanup retry
   db/migrations/            Versioned Roomy schema
   db/migrate.js             Migration runner
+  db/userContext.js         Transaction-local user identity and savepoints
+  db/preflight-cli.js       Database role and policy checks
+  tests/                    API, configuration, RLS, and transaction checks
+  SECURITY-ROLLOUT.md        Role setup and production cutover procedure
 docs/                       Planning notes and project documentation
-.github/workflows/          Deployment workflow inherited from the template
+.github/workflows/          Current GitHub Pages build/deployment workflow
 AI-USAGE.md                 Record of AI assistance and project decisions
 ```
 
@@ -300,10 +380,96 @@ React/Vite/Tailwind frontend
 ```
 
 Express derives ownership from a verified session, validates requests, and
-uses parameterized SQL for inventory and layouts. Storage moves/deletions run
-in database transactions. The planner saves logical coordinates measured in
+uses parameterized SQL for inventory and layouts. Each authenticated request
+sets the user ID within its database transaction; nested work uses savepoints
+on the same connection. Restricted database roles and owner-specific RLS
+policies provide additional access checks. A separate maintenance login handles
+photo cleanup jobs. Storage moves/deletions run in database transactions.
+The planner saves logical coordinates measured in
 centimeters against each room's specified width and depth; saving a resized
 planner shape also updates that item's Width/Depth values.
+
+## Working on Roomy
+
+There is no root-level npm script: run commands inside `client/` or `server/`.
+Keep the client and server in separate terminals during real-mode development.
+
+| Change | Start with |
+| --- | --- |
+| Page layout, forms, or interactions | `client/src/pages/` and `client/src/components/` |
+| App-wide state and page navigation | `client/src/App.jsx` |
+| Demo data or API calls | `client/src/api/` |
+| API routes and input validation | `server/app.js` and `server/roomyRepo.js` |
+| Photos or account deletion | `server/photos.js` and `server/account.js` |
+| Database schema | A new numbered file in `server/db/migrations/` |
+
+For a change, create a branch, keep the scope small, and include a description
+of how you tested it. Keep demo and real API behavior consistent when changing
+data operations. Add a new migration for schema changes; do not rewrite a
+migration that has already been applied to a shared database.
+
+Before submitting changes:
+
+```powershell
+# From the repository root
+cd server
+npm test
+cd ..\client
+npm run test:config
+npm run build:demo
+```
+
+The client tests currently cover configuration and routing helpers, not the
+whole interface. Also check affected screens manually in both themes, at a
+narrow screen width, and using the keyboard. For real-mode changes, check
+authenticated behavior against your development database. A demo build does
+not verify production configuration; run `npm run build` separately when
+valid public HTTPS settings are available.
+
+Never commit `.env` files, credentials, session tokens, or database exports.
+Use placeholders in examples. Review your diff before committing, and record
+AI-assisted work in [AI-USAGE.md](AI-USAGE.md) where applicable.
+
+### Common setup problems
+
+| Problem | What to check |
+| --- | --- |
+| Changes disappear or data seems different | Demo data belongs to the current browser; real data belongs to the signed-in account. Check `VITE_USE_MOCK_API`. |
+| An existing account cannot sign in | Confirm the client points to the Supabase project where that account was created, and check email confirmation. |
+| The browser cannot reach the API | Start the server, check `VITE_API_BASE_URL`, and make `CORS_ORIGINS` match the exact frontend origin printed by Vite. |
+| Database security preflight fails | Follow the runbook's role and policy checks. Do not disable row-level security to work around the error. |
+| Database certificate error | Configure the trusted database CA certificate with `DATABASE_SSL_CA_FILE`; do not disable TLS verification. |
+| A release build rejects localhost or demo mode | This is intentional. Use `npm run dev` locally or `npm run build:demo` for a demo artifact. |
+
+Restart the client after changing its `.env`, and restart the server after
+changing server settings. Rebuild the frontend when changing deployment
+settings, because its environment values are included at build time.
+
+## Verification and current progress
+
+Recorded checks on **2026-10-05**:
+
+| Check | Result |
+| --- | --- |
+| Server tests (`npm test` in `server/`) | 23 passed. |
+| Client configuration tests (`npm run test:config` in `client/`) | 7 passed. |
+| Client builds | Demo and release builds with synthetic HTTPS configuration passed; a localhost release API URL is correctly rejected. |
+| Database and API | Security preflight, two-account isolation, private photos, cleanup, and planner persistence/conflict checks passed in an isolated test project. |
+| Frontend review | The owner reviewed the local website visually and reported that it looks good. Detailed workflow, responsive, keyboard, and theme checks still need recorded coverage. |
+| Production environment | Original database cutover and live hosting checks remain pending. |
+
+Production verification remains pending. Database role setup and the cutover
+procedure are documented in the
+[security rollout runbook](server/SECURITY-ROLLOUT.md).
+
+To rerun the local test suites:
+
+```powershell
+cd server
+npm test
+cd ..\client
+npm run test:config
+```
 
 ## Screenshots
 
@@ -327,40 +493,39 @@ planner shape also updates that item's Width/Depth values.
 
 ![Roomy Add Item form](docs/assets/add-item-form.png)
 
-These screenshots show the current Roomy frontend running locally. Production
-deployment is still pending.
+These screenshots show local versions of the Roomy frontend. Their freshness
+against the latest interface still needs review; production deployment remains
+pending.
 
 ## Known issues and next steps
 
-- The complete real-mode flow still needs verification with two separate
-  accounts, especially ownership isolation and Row Level Security behavior.
-- The configured Supabase database currently has RLS enabled on all seven Roomy
-  tables but no policies, and `DATABASE_URL` uses a `postgres` role with
-  `BYPASSRLS`. Production is blocked until the isolated role/RLS rollout in
-  `server/SECURITY-ROLLOUT.md` is completed.
-- The planner is still an early version and needs to be finalized with more
-  complete layout editing and placement behavior.
-- The website responsiveness still needs further testing and polish across
-  smaller screens and mobile device layouts.
+- Database and API security checks pass in an isolated test project. The
+  original Supabase project's production role/RLS cutover remains pending.
+- Detailed browser coverage remains to be recorded for signup/login, storage
+  workflows, photo adjustments, planner drag/resize/rotate, undo/redo,
+  autosave/manual save, and reload/error recovery. The owner's visual review
+  does not establish complete coverage of those interactions.
+- Responsive layouts, keyboard navigation, focus behavior, and both themes
+  need further checks across desktop, tablet, and phone sizes.
 - The app has not been verified on a production frontend/API/database host.
 - Demo browser data is not imported into real accounts automatically.
-- The old sightings template files remain in `server/db/`; only
-  `npm run db:migrate` applies the Roomy schema.
+- Screenshot freshness and the AI usage record still need updates for the
+  latest development and QA work.
 
-The remaining work is focused on finalizing the planner, improving responsive
-layouts, completing real-mode security testing, and deploying the application.
+The remaining work is focused on completing recorded browser checks, updating
+project documentation, and reviewing the production setup and database cutover.
 
-## What I would do next
+## Planned work
 
-1. Finalize the planner’s layout editing, item placement, and save/reload
-   behavior.
-2. Test the complete real-mode flow with two accounts, including rooms, items,
-   storage decisions, photo uploads, layouts, and cross-account isolation.
-3. Test and polish the responsive layouts on mobile and smaller desktop widths.
-4. Prepare production deployment by configuring the least-privilege API
-   database login, frontend/API environment variables, CORS, and migrations.
-5. Deploy the API and frontend, then update the live links, screenshots, and
-   final demonstration materials.
+1. Record manual browser checks against the QA project, including authentication,
+   inventory/storage, photos, planner interactions, saves, and error recovery.
+2. Test mobile/tablet layouts, keyboard navigation, focus, and both themes;
+   address any confirmed issues.
+3. Refresh screenshots and update the backend documentation and AI usage record.
+4. Review production roles, migration 005, backups, API hosting, and Vercel
+   frontend settings, including environment variables, CORS, and Auth redirects.
+5. Verify the live frontend/API/database setup and publish its links. Keep the
+   demo video, slides, and presentation image outside this repository.
 
 ## Author
 
@@ -372,7 +537,7 @@ Bachelor of Science in Computer Science, CS-404
 - [Project proposal and design notes](docs/README.md)
 - [Backend API contract and setup](docs/backend.md)
 - [AI usage record](AI-USAGE.md)
-- [Class starter instructions](START-HERE.md)
+- [Database security setup and cutover](server/SECURITY-ROLLOUT.md)
 
 ## AI use
 

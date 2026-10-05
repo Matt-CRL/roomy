@@ -14,8 +14,7 @@ second owner check; production startup rejects owner/BYPASSRLS runtime roles.
 Use Node.js 20 or newer. Follow the root [README](../README.md) and
 [security rollout runbook](../server/SECURITY-ROLLOUT.md) for Supabase project
 setup, roles, `.env` variables, the private bucket, migrations, and run
-commands. Run `npm run db:migrate` with the migration-only login. Do not use
-the old sightings seed/reset files. Migrations are recorded in
+commands. Run `npm run db:migrate` with the migration-only login. Migrations are recorded in
 `roomy_migrations` and do not clear user data. Do not apply migration 005 to
 the existing project until its isolated database tests and cutover review are
 complete.

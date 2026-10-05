@@ -16,9 +16,6 @@ services:
       POSTGRES_DB: haunted
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Runs the FIRST time the volume is created, and never again. Later schema
-      # changes go through your own migration files.
-      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -d haunted']
       interval: 10s

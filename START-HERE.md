@@ -106,13 +106,14 @@ afterwards assumes it.
 cd server
 npm install
 cp .env.example .env
-npm run db:reset      # creates your tables, adds sample rows
+npm run db:migrate    # applies the Roomy migrations
 npm run dev
 curl http://localhost:3000/readyz
 ```
 
-Edit `db/schema.sql` to be your schema, and `sightingsRepo.js` to be your
-queries. Keep every query parameterised.
+Roomy's schema changes live in `db/migrations/`, and its queries live in
+`roomyRepo.js`. Follow the root README and `server/SECURITY-ROLLOUT.md` for
+the current database setup. Keep every query parameterised.
 
 ### Week three to four: get all three online
 
