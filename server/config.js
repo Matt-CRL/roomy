@@ -57,6 +57,9 @@ export function productionConfigIssues(env = process.env) {
     issues.push('CORS_ORIGINS must contain only explicit HTTPS production origins')
   }
   if (env.PUBLIC_HTTPS !== 'true') issues.push('PUBLIC_HTTPS must be "true" for the HTTPS production deployment')
+  if (typeof env.CRON_SECRET !== 'string' || env.CRON_SECRET.length < 32) {
+    issues.push('CRON_SECRET must contain at least 32 characters for scheduled cleanup authorization')
+  }
 
   return issues
 }

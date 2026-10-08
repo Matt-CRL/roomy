@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 test('health is public and Roomy data is protected', async () => {
   process.env.DATABASE_URL ??= 'postgresql://user:password@localhost:5432/roomy_test'
+  process.env.CRON_SECRET = 'private-test-cron-secret-longer-than-32-chars'
   const { app } = await import('../app.js')
   const { pool } = await import('../db/pool.js')
   const server = app.listen(0)
@@ -18,6 +19,17 @@ test('health is public and Roomy data is protected', async () => {
     assert.equal(privateResponse.status, 401)
     const accountResponse = await fetch(`${base}/api/account`, { method: 'DELETE' })
     assert.equal(accountResponse.status, 401)
+
+    const cronUrl = `${base}/api/cron/photo-cleanup`
+    assert.equal((await fetch(cronUrl)).status, 401)
+    assert.equal((await fetch(cronUrl, { headers: { authorization: 'Bearer wrong-secret' } })).status, 401)
+    const cron = await fetch(cronUrl, {
+      headers: { authorization: `Bearer ${process.env.CRON_SECRET}` },
+    })
+    assert.equal(cron.status, 200)
+    assert.deepEqual(await cron.json(), { ok: true, processed: 0, deleted: 0, failed: 0 })
+    assert.equal(cron.headers.get('cache-control'), 'no-store')
+
   } finally {
     await new Promise((resolve) => server.close(resolve))
     await pool.end()
