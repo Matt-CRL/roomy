@@ -94,7 +94,7 @@ updating this file as the project develops.
 - **What I asked for:** I asked Codex to implement the approved plan to prepare Roomy for public deployment on the Vercel Hobby plan.
 - **What it gave back:** It prepared the Express Function startup path with the existing fail-closed database and private-Storage checks, added Vercel pool lifecycle handling and a secret-protected daily photo-cleanup endpoint, kept the five-minute retry only in local development, and made cleanup batches use row locks so overlapping workers do not process the same jobs. It aligned the upload limit to 4 MiB, added Vercel SPA routing and browser security headers, made the Pages workflow manual-only, updated the deployment documentation, and fixed a critical dependency advisory. It also added tests for the cleanup worker, cron authorization/configuration, SPA settings, and photo size boundary.
 - **What I kept, what I changed, and why:** I kept the existing React/Vite, Express, and Supabase architecture and its restricted database roles. The 4 MiB limit and daily retry match the approved Hobby plan constraints. I reviewed the generated work and ran the tests and builds. The Vercel projects, SMTP provider, Auth redirects, backup setup, and hosted checks still need account-side configuration, so I have not described Roomy as deployed or production-ready.
-- **Commit:** Pending; these changes are not committed yet.
+- **Commit:** [Add Vercel deployment configuration and safeguards](https://github.com/Matt-CRL/roomy/commit/ad5e7644897e4046471f39f06569513f76f187f6)
 
 ## 2. Where the AI got it wrong
 
