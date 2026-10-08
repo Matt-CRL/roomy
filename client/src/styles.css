@@ -5,6 +5,33 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    --root-scrollbar-track: #f8fafc;
+    --root-scrollbar-thumb: #cbd5e1;
+    scrollbar-color: var(--root-scrollbar-thumb) var(--root-scrollbar-track);
+    background-color: var(--root-scrollbar-track);
+  }
+
+  html:has(.night-mode) {
+    --root-scrollbar-track: #0c0920;
+    --root-scrollbar-thumb: #68627d;
+    background-color: var(--root-scrollbar-track);
+  }
+
+  html::-webkit-scrollbar {
+    width: 12px;
+  }
+
+  html::-webkit-scrollbar-track {
+    background-color: var(--root-scrollbar-track);
+  }
+
+  html::-webkit-scrollbar-thumb {
+    border: 3px solid var(--root-scrollbar-track);
+    border-radius: 999px;
+    background-color: var(--root-scrollbar-thumb);
+  }
+
   button:not(:disabled),
   a[href],
   summary,
@@ -527,23 +554,7 @@
 }
 
 .night-mode .auth-login-panel {
-  background-color: #000000;
-}
-
-.auth-google-button {
-  border-color: #0c0920;
-  background-color: #0c0920;
-  color: #faf6ef;
-}
-
-.auth-google-button:hover {
-  border-color: #17132d;
-  background-color: #17132d;
-}
-
-.night-mode .auth-google-button,
-.night-mode .auth-google-button:hover {
-  border-color: #faf6ef;
+  background-color: #1d1b31;
 }
 
 .night-mode .bg-slate-50 {
@@ -708,6 +719,14 @@
 
 .night-mode .auth-form-input::placeholder {
   color: #64748b;
+}
+
+.night-mode .auth-password-toggle {
+  color: #475569;
+}
+
+.night-mode .auth-password-toggle:hover {
+  color: #f97316;
 }
 
 .night-mode input[type='number'] {

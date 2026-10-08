@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Button from '../components/common/Button'
 import InventoryTypeIcon from '../components/items/InventoryTypeIcon'
 import { getPhotoImageStyle } from '../data/photoDisplay'
+import darkLogo from '../assets/dark-logo.png'
 import {
   clamp,
   clampShapePosition,
@@ -434,7 +435,7 @@ export default function PlannerWorkspace({
     autosaveTimerRef.current = window.setTimeout(() => {
       autosaveTimerRef.current = null
       if (!layoutLoadedRef.current) return
-      if (interactionRef.current || inspectorHistoryRef.current) {
+      if (interactionRef.current) {
         scheduleAutosave()
         return
       }
@@ -1132,7 +1133,7 @@ export default function PlannerWorkspace({
       <nav aria-label="Planner navigation" className="absolute inset-x-0 top-0 z-50 w-full border-b border-black bg-black px-3 text-white sm:px-8">
         <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-3 lg:min-h-[80px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-x-8 lg:py-0">
           <div className="flex min-w-0 items-center gap-2 sm:gap-7 lg:col-start-1 lg:row-start-1">
-            <span className="shrink-0 text-xl font-bold tracking-tight text-orange-500 sm:text-2xl">Roomy</span>
+            <img src={darkLogo} alt="Roomy" className="h-8 w-auto shrink-0 object-contain sm:h-10" />
             <span aria-hidden="true" className={`hidden h-8 w-px sm:block ${isDarkMode ? 'bg-slate-700' : 'bg-[#62769a]'}`} />
             <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-200 transition-colors hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:gap-2 sm:text-sm">
               <span aria-hidden="true" className="text-lg">←</span>

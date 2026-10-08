@@ -125,6 +125,7 @@ export default function ItemFormPage({
   rooms = [],
   onDeleteItem,
   onMoveItem,
+  onLoadPhoto,
   storageOptions,
   allowPhoto = false,
   onDeletePhoto,
@@ -162,20 +163,65 @@ export default function ItemFormPage({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [photoFile, setPhotoFile] = useState(null)
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState(item?.imageUrl ?? null)
+  const [isPhotoLoading, setIsPhotoLoading] = useState(Boolean(item?.hasPhoto && !item?.imageUrl))
+  const [photoLoadError, setPhotoLoadError] = useState('')
+  const [photoLoadRetry, setPhotoLoadRetry] = useState(0)
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
   const photoInputRef = useRef(null)
   const photoDragRef = useRef(null)
+  const photoLoaderRef = useRef(onLoadPhoto)
+  photoLoaderRef.current = onLoadPhoto
 
   useEffect(() => {
-    if (!photoFile) {
-      setPhotoPreviewUrl(item?.imageUrl ?? null)
+    let active = true
+
+    if (photoFile) {
+      const previewUrl = URL.createObjectURL(photoFile)
+      setPhotoPreviewUrl(previewUrl)
+      setIsPhotoLoading(false)
+      setPhotoLoadError('')
+      return () => {
+        active = false
+        URL.revokeObjectURL(previewUrl)
+      }
+    }
+
+    if (item?.imageUrl) {
+      setPhotoPreviewUrl(item.imageUrl)
+      setIsPhotoLoading(false)
+      setPhotoLoadError('')
       return undefined
     }
 
-    const previewUrl = URL.createObjectURL(photoFile)
-    setPhotoPreviewUrl(previewUrl)
-    return () => URL.revokeObjectURL(previewUrl)
-  }, [item?.imageUrl, photoFile])
+    if (!item?.hasPhoto) {
+      setPhotoPreviewUrl(null)
+      setIsPhotoLoading(false)
+      setPhotoLoadError('')
+      return undefined
+    }
+
+    setPhotoPreviewUrl(null)
+    setIsPhotoLoading(true)
+    setPhotoLoadError('')
+    const loadPhoto = photoLoaderRef.current
+    if (!loadPhoto) {
+      setIsPhotoLoading(false)
+      setPhotoLoadError('Could not load the saved photo. Try again.')
+      return undefined
+    }
+
+    loadPhoto(item).then((previewUrl) => {
+      if (!active) return
+      if (!previewUrl) throw new Error('Photo unavailable')
+      setPhotoPreviewUrl(previewUrl)
+    }).catch(() => {
+      if (active) setPhotoLoadError('Could not load the saved photo. Try again.')
+    }).finally(() => {
+      if (active) setIsPhotoLoading(false)
+    })
+
+    return () => { active = false }
+  }, [item?.id, item?.updatedAt, item?.hasPhoto, item?.imageUrl, photoFile, photoLoadRetry])
 
   function updateField(field, value) {
     setForm((currentForm) => ({
@@ -187,7 +233,8 @@ export default function ItemFormPage({
   function startPhotoDrag(event) {
     if (!photoPreviewUrl) return
     const frame = event.currentTarget
-    frame.setPointerCapture(event.pointerId)
+    event.preventDefault()
+    frame.setPointerCapture?.(event.pointerId)
     photoDragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
@@ -397,6 +444,7 @@ export default function ItemFormPage({
                   onPointerMove={movePhoto}
                   onPointerUp={endPhotoDrag}
                   onPointerCancel={endPhotoDrag}
+                  onDragStart={(event) => event.preventDefault()}
                   role={photoPreviewUrl ? 'application' : undefined}
                   aria-label={photoPreviewUrl ? 'Drag to adjust the inventory photo' : undefined}
                 >
@@ -414,7 +462,12 @@ export default function ItemFormPage({
                     />
                   ) : (
                     <span className="px-4 text-center text-[10px] text-slate-500">
-                      Add a photo to adjust its card display.
+                      {isPhotoLoading ? 'Loading saved photo…' : photoLoadError ? (
+                        <>
+                          {photoLoadError}{' '}
+                          <button type="button" onClick={() => setPhotoLoadRetry((retry) => retry + 1)} className="font-semibold text-orange-600 underline underline-offset-2">Try again</button>
+                        </>
+                      ) : 'Add a photo to adjust its card display.'}
                     </span>
                   )}
                 {photoPreviewUrl && (
@@ -596,7 +649,7 @@ export default function ItemFormPage({
                       form="item-form"
                       type="number"
                       min="1"
-                      step="1"
+                      step="0.01"
                       value={form.width}
                       onChange={(event) => handleDimensionChange('width', event.target.value)}
                       placeholder="30"
@@ -610,7 +663,7 @@ export default function ItemFormPage({
                       form="item-form"
                       type="number"
                       min="1"
-                      step="1"
+                      step="0.01"
                       value={form.depth}
                       onChange={(event) => handleDimensionChange('depth', event.target.value)}
                       placeholder="30"
@@ -669,7 +722,13 @@ export default function ItemFormPage({
                     <Button
                       variant="danger"
                       type="button"
-                      onClick={() => setIsDeleteConfirmOpen(true)}
+                      onClick={() => {
+                        if (item?.isStorageUnit && Number(item.storedCount) > 0) {
+                          confirmDeleteItem()
+                          return
+                        }
+                        setIsDeleteConfirmOpen(true)
+                      }}
                       disabled={busy}
                     >
                       Delete item
@@ -694,7 +753,9 @@ export default function ItemFormPage({
               Delete {item?.name || 'this item'}?
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              This permanently deletes the item. This action cannot be undone.
+              {item?.isStorageUnit
+                ? 'This permanently deletes the storage unit. This action cannot be undone.'
+                : 'This permanently deletes the item. This action cannot be undone.'}
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <Button
