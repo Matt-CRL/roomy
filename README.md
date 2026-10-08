@@ -4,10 +4,12 @@ Roomy is a personal room inventory and approximate 2D layout-planning web
 application. It helps people record belongings, remember where items are
 stored, and organise rooms while rearranging or decorating their space.
 
-> **Status — 2026-10-05:** The main features are implemented and available
-> locally. Backend and database security checks have passed in a separate
-> test environment. Full browser testing and production deployment are still
-> in progress; this is not yet a production-ready release.
+> **Status — 2026-10-09:** Core features are implemented and available locally.
+> The selected Supabase project (`roomy-production`) passed its runtime and
+> photo-maintenance security preflight on 2026-10-08; earlier QA on that
+> project verified account isolation, private photos and cleanup, and planner
+> persistence. Manual browser QA, backup/recovery review, and deployment are
+> still pending, so Roomy is not yet production-ready.
 
 **Live site:** Not deployed yet
 **API:** Runs locally; no public API deployment yet
@@ -198,6 +200,13 @@ not.
 
 ## Features and usage
 
+### Authentication
+
+- Real mode supports email/password sign-up and sign-in through Supabase Auth.
+- Users can request a password-reset email and set a new password from its
+  recovery link. Configure the allowed redirect URLs in Supabase for each
+  environment; browser testing of this flow is still pending.
+
 ### Rooms
 
 - View room, item, and storage summaries.
@@ -238,6 +247,7 @@ not.
   while previewing the inventory card.
 - The planner preview and settings share one card. Width, depth, and color
   match the planner's object appearance and can be adjusted there later.
+- Planner item width and depth accept values with up to two decimal places.
 - New planner objects default to 30 × 30 cm and color `#1d1b31`.
 - Width and depth cannot be set below 1 cm.
 - Storage units display their stored-item count.
@@ -316,10 +326,12 @@ hosting/configuration and production Auth/CORS settings remain to be reviewed.
 
 Release builds require explicit real-mode configuration and the public
 `VITE_` settings above. The production API must use restricted runtime and
-maintenance roles and pass `npm run db:preflight`. Those roles and two-account
-API isolation have been verified in the isolated QA project. The original
-Supabase project still needs its own reviewed cutover and host checks. Live
-site/API links will be added after deployment is verified.
+maintenance roles. The selected Supabase project, now named
+`roomy-production` (formerly `roomy-test-qa`), passed
+`npm run db:preflight`; earlier QA on that project also verified two-account
+API isolation. The separate original Supabase project is unchanged and is not
+the app's database. Backup/recovery, deployment, and host-level security checks
+remain pending. Live site/API links will be added after deployment is verified.
 
 ## Project structure
 
@@ -447,20 +459,20 @@ settings, because its environment values are included at build time.
 
 ## Verification and current progress
 
-Recorded checks on **2026-10-05**:
+Recorded checks through **2026-10-09**:
 
 | Check | Result |
 | --- | --- |
 | Server tests (`npm test` in `server/`) | 23 passed. |
 | Client configuration tests (`npm run test:config` in `client/`) | 7 passed. |
 | Client builds | Demo and release builds with synthetic HTTPS configuration passed; a localhost release API URL is correctly rejected. |
-| Database and API | Security preflight, two-account isolation, private photos, cleanup, and planner persistence/conflict checks passed in an isolated test project. |
+| Database and API | The selected `roomy-production` project passed the runtime/photo-maintenance security preflight on 2026-10-08. Earlier QA on that project verified two-account isolation, private photos and cleanup, and planner persistence/conflict handling. |
 | Frontend review | The owner reviewed the local website visually and reported that it looks good. Detailed workflow, responsive, keyboard, and theme checks still need recorded coverage. |
-| Production environment | Original database cutover and live hosting checks remain pending. |
+| Production environment | Manual browser QA, backup/recovery review, deployment, and host-level security checks remain pending. The separate original Supabase project is unchanged and is not the app database. |
 
-Production verification remains pending. Database role setup and the cutover
-procedure are documented in the
-[security rollout runbook](server/SECURITY-ROLLOUT.md).
+Production verification remains pending for backup/recovery, deployment, and
+host-level security configuration. Database role requirements and rollout
+details are documented in the [security rollout runbook](server/SECURITY-ROLLOUT.md).
 
 To rerun the local test suites:
 
@@ -499,15 +511,15 @@ pending.
 
 ## Known issues and next steps
 
-- The selected Supabase project (renamed `roomy-production`, previously the
-  QA project) passes the runtime/photo-maintenance preflight. The separate
+- The selected Supabase project (renamed `roomy-production`, formerly
+  `roomy-test-qa`) passes the runtime/photo-maintenance preflight. The separate
   original Supabase project remains unchanged and is no longer the app target.
   Database and Storage backup/recovery arrangements still need confirmation
   before public use.
-- Detailed browser coverage remains to be recorded for signup/login, storage
-  workflows, photo adjustments, planner drag/resize/rotate, undo/redo,
-  autosave/manual save, and reload/error recovery. The owner's visual review
-  does not establish complete coverage of those interactions.
+- Detailed browser coverage remains to be recorded for signup/login/password
+  recovery, storage workflows, photo adjustments, planner drag/resize/rotate,
+  undo/redo, autosave/manual save, and reload/error recovery. The owner's visual
+  review does not establish complete coverage of those interactions.
 - Responsive layouts, keyboard navigation, focus behavior, and both themes
   need further checks across desktop, tablet, and phone sizes.
 - The app has not been verified on a production frontend/API/database host.
