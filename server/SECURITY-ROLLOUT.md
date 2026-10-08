@@ -95,10 +95,13 @@ Supabase project until the isolated test and cutover review are done.
    a `VITE_` variable. The production build intentionally fails closed until
    these are valid.
 
-The API host is still undecided. Select an HTTPS host that can run a persistent
-Node.js process before filling in the production API origin and final CORS/Auth
-redirect settings. The current frontend workflow targets GitHub Pages and the
-client now accounts for its repository subpath.
+Vercel Hobby is the selected host. The application repository now contains a
+Vercel Express Function entry, API cron configuration, frontend SPA routing,
+and response security headers. Neither Vercel project has been connected or
+deployed. Set the API and frontend project roots to `server` and `client`, then
+use their actual HTTPS domains for the frontend API URL, exact server CORS
+allowlist, and Supabase Auth site/redirect URLs. Keep production secrets off
+untrusted preview deployments.
 
 ## Rollback guidance
 
@@ -111,8 +114,10 @@ migration 005 are additive; data is not dropped or rewritten.
 ## Local checks implemented
 
 - `npm test` covers server behavior, transaction-local identity/savepoints,
-  production config checks, and role/policy preflight logic (23 tests pass).
-- `npm run test:config` covers fail-closed frontend config and base-path logic.
+  production config, photo cleanup locking, and role/policy preflight logic
+  (29 tests passed on 2026-10-09).
+- `npm run test:config` covers fail-closed frontend config, base paths, Vercel
+  SPA/security headers, and the 4 MiB upload boundary (9 tests passed).
 - `npm run build:demo` is the intentional demo-only build path.
 - `npm run db:preflight` checks a connected database without modifying it.
 - Historical read-only preflight against the former original project failed
@@ -122,9 +127,10 @@ migration 005 are additive; data is not dropped or rewritten.
   again on 2026-10-08.
 
 The API emits security response headers, and release builds include a
-Content-Security-Policy meta element. This does not provide HTTP response
-headers such as HSTS or `X-Frame-Options` for the static GitHub Pages frontend;
-verify/configure those at the selected frontend host or CDN before release.
+Content-Security-Policy meta element. Vercel frontend HTTP response headers
+are configured in `client/vercel.json`, including HSTS and `X-Frame-Options`;
+they remain unverified on a real hosted deployment. The build-time CSP meta
+element includes the exact API and Supabase origins.
 
 The earlier isolated-database, two-account, and private-Storage QA passed on
 the project now named `roomy-production`. The user previously reported that

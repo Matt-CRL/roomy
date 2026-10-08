@@ -8,11 +8,12 @@ stored, and organise rooms while rearranging or decorating their space.
 > The selected Supabase project (`roomy-production`) passed its runtime and
 > photo-maintenance security preflight on 2026-10-08; earlier QA on that
 > project verified account isolation, private photos and cleanup, and planner
-> persistence. Manual browser QA, backup/recovery review, and deployment are
-> still pending, so Roomy is not yet production-ready.
+> persistence. Vercel configuration work is underway, but no Vercel project
+> has been deployed or connected yet. Manual browser QA and backup/recovery
+> review also remain, so Roomy is not yet ready for public use.
 
 **Live site:** Not deployed yet
-**API:** Runs locally; no public API deployment yet
+**API:** Runs locally; Vercel function configuration is prepared but not deployed
 
 ## Start here
 
@@ -45,8 +46,8 @@ moving, resizing, rotating, appearance settings, undo/redo, and automatic saves.
 
 - Node.js 20+, Express, PostgreSQL, and `pg`
 - Supabase for PostgreSQL hosting, email/password authentication, and private photos
-- Intended frontend host: Vercel; deployment has not been verified
-- API hosting/configuration: pending
+- Intended host: Vercel Hobby, with separate frontend and API projects
+- Hosting configuration and hosted behavior remain unverified until deployed
 
 The real mode uses the Express API for inventory and layouts. External services
 must be configured before that mode can run.
@@ -176,6 +177,7 @@ belong in `server/.env`. Demo mode needs only `VITE_USE_MOCK_API=true`.
 | `MIGRATION_DATABASE_URL` | `server/.env.migrate` only | Administrative connection for reviewed migrations; never put it in the API `.env`, a host runtime, or a `VITE_` variable. |
 | `PHOTO_CLEANUP_DATABASE_URL` | Restricted cleanup connection | Separate worker login limited to the photo cleanup table. |
 | `DATABASE_SSL_CA_FILE` | `C:\path\outside-repo\supabase-ca.pem` | Optional local path to the database root certificate for verified TLS. |
+| `DATABASE_SSL_CA` | PEM certificate contents | Optional backend-only certificate value for hosted verified TLS; use this on Vercel instead of a local file path when needed. |
 | `SUPABASE_URL` | `https://your-project.supabase.co` | Server's Auth and Storage project URL. |
 | `SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_replace_me` | Server's public Auth project key. |
 | `SUPABASE_SECRET_KEY` | `sb_secret_replace_me` | Server-only key for private photo storage. |
@@ -183,12 +185,13 @@ belong in `server/.env`. Demo mode needs only `VITE_USE_MOCK_API=true`.
 | `CORS_ORIGINS` | `https://roomy.example.com` | Comma-separated allowed frontend origins; production requires HTTPS. |
 | `NODE_ENV` | `development` | Runtime mode; use `production` on a host. |
 | `PUBLIC_HTTPS` | `true` | Confirms production HTTPS at the host/proxy and enables HSTS. |
+| `CRON_SECRET` | Random value, at least 32 characters | Backend-only authorization for Vercel's scheduled photo-cleanup request. |
 | `PORT` | `3000` | Optional local API port; hosting providers normally set it. |
 
 `PUBLIC_HTTPS` is for a production HTTPS host, not the local HTTP server.
 The cleanup connection is required in production and for the full database
-preflight. The certificate path is needed only if the database certificate
-is not already trusted.
+preflight. Supply a certificate only when the database certificate is not
+already trusted; Vercel requires PEM contents rather than a path on your PC.
 
 Values beginning with `VITE_` are compiled into the frontend and are public.
 Never put passwords, database connection strings, or private keys in them.
@@ -197,6 +200,31 @@ Do not put `DATABASE_URL` or `SUPABASE_SECRET_KEY` in `client/.env`. Vite embeds
 all `VITE_` values at build time. The Supabase publishable key is designed to
 be public; database credentials, secret keys, access tokens, and passwords are
 not.
+
+## Deploying on Vercel
+
+Roomy is being prepared for two Vercel projects connected to this repository:
+
+| Vercel project | Root directory | Build | Output / runtime |
+| --- | --- | --- | --- |
+| Frontend | `client` | `npm run build` | Static Vite output in `dist`; `client/vercel.json` provides SPA route rewrites and browser security headers. |
+| API | `server` | Vercel Express detection | Express app exported by `server/index.js` as a Vercel Function; `server/vercel.json` schedules photo cleanup. |
+
+These project settings are not yet configured in a Vercel account, and there
+is no public Roomy URL yet. Add the frontend's four `VITE_` values as build
+environment variables. Add the database URLs, Supabase secret, exact frontend
+origin in `CORS_ORIGINS`, `PUBLIC_HTTPS=true`, and `CRON_SECRET` only to the API
+project. Keep `MIGRATION_DATABASE_URL` off the API host. Configure preview
+environments intentionally; Vercel preview URLs are public unless protected,
+and should not receive production secrets by default.
+
+The API processes a small photo-cleanup batch after successful changes and
+Vercel retries the remaining durable queue daily. Hobby runs cron once a day,
+with up to 59 minutes of scheduling variation. Image uploads are limited to
+4 MiB to stay under Vercel's function request-size limit. Public signup and
+password recovery also require Supabase Auth email delivery to be configured
+for outside users. Hosted Auth redirects, SMTP, backup/recovery, response
+headers, and an actual scheduled run still need verification before launch.
 
 ## Features and usage
 
@@ -243,7 +271,7 @@ not.
   counters. Notes and planner adjustments are optional.
 - Choose a category and storage relationship; selecting a storage unit
   disables the Stored inside field and explains why.
-- Upload a JPEG, PNG, or WebP photo (up to 5 MB), then adjust its crop and zoom
+- Upload a JPEG, PNG, or WebP photo (up to 4 MiB), then adjust its crop and zoom
   while previewing the inventory card.
 - The planner preview and settings share one card. Width, depth, and color
   match the planner's object appearance and can be adjusted there later.
@@ -298,6 +326,7 @@ header. `/healthz` and `/readyz` are public.
 | GET, PUT | `/api/rooms/:roomId/layout` | Load/save one room layout with a revision. |
 | GET, POST, DELETE | `/api/items/:itemId/photo` | Download, upload, or remove a private photo. |
 | DELETE | `/api/account` | Permanently delete the signed-in account and its Roomy data. |
+| GET | `/api/cron/photo-cleanup` | Secret-protected Vercel job; not a browser endpoint. |
 
 For a nonempty storage unit, move/delete requires `includeContents` and the
 `contentsVersion` returned by the contents route. Including items moves or
@@ -317,21 +346,21 @@ An absent or expired session returns `401`; an absent or unowned record
 returns `404`; stale layout or storage decisions return `409`. Request
 examples and validation details are in [docs/backend.md](docs/backend.md).
 
-## Deploying
+## Current deployment status
 
-Vercel is the intended frontend host; no final live deployment has been
-verified. The repository still contains a GitHub Pages workflow from the
-current code setup, and Vercel configuration has not yet replaced it. The API
-hosting/configuration and production Auth/CORS settings remain to be reviewed.
+The Vercel project setup described above is prepared in the repository but has
+not been connected to a Vercel account or deployed. The GitHub Pages workflow
+is manual-only; pushes no longer publish the app there. Release builds require
+explicit real-mode configuration and the public `VITE_` settings above. The
+production API requires restricted runtime and maintenance roles.
 
-Release builds require explicit real-mode configuration and the public
-`VITE_` settings above. The production API must use restricted runtime and
-maintenance roles. The selected Supabase project, now named
-`roomy-production` (formerly `roomy-test-qa`), passed
-`npm run db:preflight`; earlier QA on that project also verified two-account
-API isolation. The separate original Supabase project is unchanged and is not
-the app's database. Backup/recovery, deployment, and host-level security checks
-remain pending. Live site/API links will be added after deployment is verified.
+The selected Supabase project, now named `roomy-production` (formerly
+`roomy-test-qa`), passed `npm run db:preflight`; earlier QA on that project
+also verified two-account API isolation. The separate original Supabase
+project is unchanged and is not the app's database. Backup/recovery, hosted
+email delivery, browser workflows, Vercel configuration, scheduled cleanup,
+and host-level security checks remain pending. Live site/API links will be
+added after deployment is verified.
 
 ## Project structure
 
@@ -350,10 +379,13 @@ client/
   package.json              Frontend scripts and dependencies
 server/
   app.js                    Protected Roomy HTTP routes and errors
+  index.js                  Express Function entry point for Vercel
+  startup.js                Fail-closed production startup checks
   account.js                Protected account deletion and cleanup
   roomyRepo.js              Parameterized SQL and transactions
   auth.js                   Supabase session verification
   photos.js                 Private Storage operations and cleanup retry
+  photoJobs.js              Bounded, lock-safe durable cleanup worker
   db/migrations/            Versioned Roomy schema
   db/migrate.js             Migration runner
   db/userContext.js         Transaction-local user identity and savepoints
@@ -361,7 +393,7 @@ server/
   tests/                    API, configuration, RLS, and transaction checks
   SECURITY-ROLLOUT.md        Role setup and production cutover procedure
 docs/                       Planning notes and project documentation
-.github/workflows/          Current GitHub Pages build/deployment workflow
+.github/workflows/          Manual-only legacy GitHub Pages workflow
 AI-USAGE.md                 Record of AI assistance and project decisions
 ```
 
@@ -450,7 +482,7 @@ AI-assisted work in [AI-USAGE.md](AI-USAGE.md) where applicable.
 | An existing account cannot sign in | Confirm the client points to the Supabase project where that account was created, and check email confirmation. |
 | The browser cannot reach the API | Start the server, check `VITE_API_BASE_URL`, and make `CORS_ORIGINS` match the exact frontend origin printed by Vite. |
 | Database security preflight fails | Follow the runbook's role and policy checks. Do not disable row-level security to work around the error. |
-| Database certificate error | Configure the trusted database CA certificate with `DATABASE_SSL_CA_FILE`; do not disable TLS verification. |
+| Database certificate error | Locally configure the trusted database CA with `DATABASE_SSL_CA_FILE`; on Vercel use backend-only `DATABASE_SSL_CA` PEM contents. Never disable TLS verification. |
 | A release build rejects localhost or demo mode | This is intentional. Use `npm run dev` locally or `npm run build:demo` for a demo artifact. |
 
 Restart the client after changing its `.env`, and restart the server after
@@ -463,12 +495,13 @@ Recorded checks through **2026-10-09**:
 
 | Check | Result |
 | --- | --- |
-| Server tests (`npm test` in `server/`) | 23 passed. |
-| Client configuration tests (`npm run test:config` in `client/`) | 7 passed. |
-| Client builds | Demo and release builds with synthetic HTTPS configuration passed; a localhost release API URL is correctly rejected. |
+| Server tests (`npm test` in `server/`) | 29 passed after Vercel preparation. |
+| Client configuration tests (`npm run test:config` in `client/`) | 9 passed after Vercel preparation. |
+| Client build | Demo build passed after Vercel preparation. Hosted real-mode build awaits the final API URL. |
+| Server production dependency audit | `npm audit --omit=dev` passed after updating the affected transitive dependency. |
 | Database and API | The selected `roomy-production` project passed the runtime/photo-maintenance security preflight on 2026-10-08. Earlier QA on that project verified two-account isolation, private photos and cleanup, and planner persistence/conflict handling. |
 | Frontend review | The owner reviewed the local website visually and reported that it looks good. Detailed workflow, responsive, keyboard, and theme checks still need recorded coverage. |
-| Production environment | Manual browser QA, backup/recovery review, deployment, and host-level security checks remain pending. The separate original Supabase project is unchanged and is not the app database. |
+| Production environment | Manual browser QA, backup/recovery review, SMTP, Vercel setup/deployment, and host-level checks remain pending. The separate original Supabase project is unchanged and is not the app database. |
 
 Production verification remains pending for backup/recovery, deployment, and
 host-level security configuration. Database role requirements and rollout
@@ -537,8 +570,8 @@ and configuring and verifying the production frontend/API hosting.
 2. Test mobile/tablet layouts, keyboard navigation, focus, and both themes;
    address any confirmed issues.
 3. Refresh screenshots and update the backend documentation and AI usage record.
-4. Confirm database and Storage backup/recovery coverage; choose the API host
-   and configure Vercel, including environment variables, CORS, and Auth redirects.
+4. Confirm database and Storage backup/recovery coverage; configure both Vercel
+   projects, environment variables, CORS, Supabase Auth redirects, and SMTP.
 5. Verify the live frontend/API/database setup and publish its links. Keep the
    demo video, slides, and presentation image outside this repository.
 

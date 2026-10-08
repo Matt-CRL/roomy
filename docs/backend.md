@@ -105,12 +105,48 @@ relative to the room. Saving a changed shape footprint updates that item's
 Width/Depth values. Stored items cannot be placed individually on the planner.
 
 Upload a photo with `POST /api/items/<item-uuid>/photo`, sending raw image
-bytes and a matching JPEG, PNG, or WebP `Content-Type`. Maximum size is 5 MB.
+bytes and a matching JPEG, PNG, or WebP `Content-Type`. Maximum size is 4 MiB
+(4,194,304 bytes), leaving room below Vercel Functions' 4.5 MB request limit.
 The bucket is private. `GET` proxies the owner's photo through Express, and
 `DELETE` removes its reference. Removed/replaced objects enter a durable SQL
-cleanup queue, retried by the running server every five minutes through the
-separate `PHOTO_CLEANUP_DATABASE_URL` role. The client never receives the
-Supabase secret key or permanent public photo URLs.
+cleanup queue through the separate `PHOTO_CLEANUP_DATABASE_URL` role. Local
+development retries every five minutes; on Vercel, the API schedules a bounded
+post-commit cleanup attempt and a secret-protected daily cron retries the
+remaining jobs. Vercel Hobby runs cron once per day with up to 59 minutes of
+scheduling variation, so cleanup can be delayed during an outage or backlog.
+The client never receives the Supabase secret key or permanent public photo URLs.
+
+The Vercel API exposes `GET /api/cron/photo-cleanup` for its scheduled job.
+Requests require `Authorization: Bearer <CRON_SECRET>`; the route returns no
+photo paths or user data. Do not call it from the browser or expose its secret.
+
+## Vercel hosting
+
+The application is prepared for two Vercel projects connected to this
+repository: a Vite static frontend with root directory `client`, and the
+Express API with root directory `server`. The frontend uses `npm run build`
+and `dist`; its Vercel config provides SPA deep-link rewrites and response
+security headers. The server exports the Express app for Vercel Functions and
+runs the same fail-closed production configuration, database/RLS, and private
+Storage preflights before serving requests. The existing `server.js` remains
+the local development entry point.
+
+The backend's runtime needs `DATABASE_URL`, `PHOTO_CLEANUP_DATABASE_URL`,
+`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`,
+`SUPABASE_PHOTO_BUCKET`, `CORS_ORIGINS`, `NODE_ENV=production`,
+`PUBLIC_HTTPS=true`, and a random `CRON_SECRET` of at least 32 characters.
+For Vercel TLS, provide `DATABASE_SSL_CA` as backend-only PEM contents if the
+host does not already trust the database certificate; a laptop file path will
+not work in the hosted Linux runtime. Never add `MIGRATION_DATABASE_URL` to the
+running API project. The browser build separately needs the four `VITE_`
+settings listed in the root README; only the Supabase URL and publishable key
+are intended to be public.
+
+The Vercel config files and local tests do not prove that a project is deployed.
+The Vercel domains, environment variables, CORS allowlist, Supabase Auth site
+URL/redirects, SMTP delivery, backup/recovery, browser workflows, actual
+response headers, and a real daily cron invocation must still be configured
+and checked before sharing the site publicly.
 
 ## Responses and verification
 

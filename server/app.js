@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import { timingSafeEqual } from 'node:crypto'
 import { pool } from './db/pool.js'
 import { requireUser } from './auth.js'
 import { deleteAccount } from './account.js'
@@ -7,16 +8,20 @@ import { ApiError, asyncRoute } from './errors.js'
 import { contentsDecision, itemFilters, itemInput, layoutInput, roomInput, uuid } from './validation.js'
 import * as repo from './roomyRepo.js'
 import * as photos from './photos.js'
-import { withUserContext } from './db/userContext.js'
+import { afterUserCommit, withUserContext } from './db/userContext.js'
 import { runtimeDatabaseIssues } from './db/preflight.js'
+import { initializeServer } from './startup.js'
+import { photoUploadBodyParser } from './photoBody.js'
 
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',').map((origin) => origin.trim()).filter(Boolean)
 
 export const app = express()
+export default app
 app.disable('x-powered-by')
 app.use((request, response, next) => {
   response.set({
+    'Cache-Control': 'no-store',
     'X-Content-Type-Options': 'nosniff',
     'X-Frame-Options': 'DENY',
     'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -43,6 +48,23 @@ app.get('/readyz', asyncRoute(async (request, response) => {
   }
 }))
 
+app.get('/api/cron/photo-cleanup', asyncRoute(async (request, response) => {
+  const secret = process.env.CRON_SECRET
+  const expected = secret ? Buffer.from(`Bearer ${secret}`) : Buffer.alloc(0)
+  const supplied = Buffer.from(request.get('authorization') || '')
+  if (expected.length < 39 || supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
+    return response.status(401).set('Cache-Control', 'no-store').json({ error: 'Unauthorized' })
+  }
+
+  try {
+    const summary = await photos.processPhotoJobs()
+    return response.set('Cache-Control', 'no-store').json({ ok: true, ...summary })
+  } catch {
+    console.error('Photo cleanup batch failed')
+    return response.status(500).set('Cache-Control', 'no-store').json({ error: 'Photo cleanup failed' })
+  }
+}))
+
 app.use('/api', requireUser)
 
 const jsonResult = (body, status = 200) => ({ body, status })
@@ -56,12 +78,13 @@ const privateRoute = (handler) => asyncRoute(async (request, response) => {
   })
   if (result.status === 204) return response.status(204).end()
   if (result.type) {
-    return response.status(result.status).set('Cache-Control', 'private, max-age=3600').type(result.type).send(result.body)
+    return response.status(result.status).set('Cache-Control', 'private, no-store').type(result.type).send(result.body)
   }
   return response.status(result.status).json(result.body)
 })
 
 app.delete('/api/account', privateRoute(async (request) => {
+  afterUserCommit(request.db, photos.schedulePhotoCleanup)
   await deleteAccount(request.userId, request.db)
   return emptyResult
 }))
@@ -84,6 +107,7 @@ app.patch('/api/rooms/:roomId', privateRoute(async (request) =>
 
 app.delete('/api/rooms/:roomId', privateRoute(async (request) => {
   const paths = await repo.deleteRoom(request.db, request.userId, uuid(request.params.roomId, 'roomId'))
+  if (paths.length) afterUserCommit(request.db, photos.schedulePhotoCleanup)
   if (paths.length) console.warn(`Room deleted with ${paths.length} photo objects pending cleanup`)
   return emptyResult
 }))
@@ -119,6 +143,7 @@ app.delete('/api/items/:itemId', privateRoute(async (request) => {
   const decision = body.contentsVersion === undefined && body.includeContents === undefined
     ? null : contentsDecision(body)
   const paths = await repo.deleteItem(request.db, request.userId, uuid(request.params.itemId, 'itemId'), decision)
+  if (paths.length) afterUserCommit(request.db, photos.schedulePhotoCleanup)
   if (paths.length) console.warn(`Item deleted with ${paths.length} photo objects pending cleanup`)
   return emptyResult
 }))
@@ -130,7 +155,7 @@ app.put('/api/rooms/:roomId/layout', privateRoute(async (request) =>
   jsonResult(await repo.saveLayout(request.db, request.userId, uuid(request.params.roomId, 'roomId'),
     (room) => layoutInput(request.body, room)))))
 
-app.post('/api/items/:itemId/photo', express.raw({ type: 'image/*', limit: '5mb' }), privateRoute(async (request) => {
+app.post('/api/items/:itemId/photo', photoUploadBodyParser, privateRoute(async (request) => {
   const result = await photos.uploadPhoto(request.userId, uuid(request.params.itemId, 'itemId'),
     request.body, request.headers['content-type'], request.db)
   return jsonResult(result, 201)
@@ -161,3 +186,5 @@ app.use((error, request, response, next) => {
   console.error(error)
   response.status(500).json({ error: 'Something went wrong on the server' })
 })
+
+if (process.env.VERCEL) await initializeServer()

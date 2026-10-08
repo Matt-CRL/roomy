@@ -12,6 +12,7 @@ const validProductionEnv = {
   SUPABASE_PHOTO_BUCKET: 'roomy-item-photos',
   CORS_ORIGINS: 'https://roomy.example.com',
   PUBLIC_HTTPS: 'true',
+  CRON_SECRET: 'private-test-cron-secret-longer-than-32-chars',
 }
 
 test('production API config accepts distinct least-privilege database roles and explicit HTTPS origin', () => {
@@ -46,6 +47,14 @@ test('production API config rejects a loopback Supabase endpoint', () => {
     ...validProductionEnv,
     SUPABASE_URL: 'https://[::1]',
   }).some((issue) => issue.includes('SUPABASE_URL')))
+})
+
+test('production API config requires a strong photo-cleanup cron secret', () => {
+  assert.ok(productionConfigIssues({ ...validProductionEnv, CRON_SECRET: undefined })
+    .some((issue) => issue.includes('CRON_SECRET')))
+  assert.ok(productionConfigIssues({ ...validProductionEnv, CRON_SECRET: 'too-short' })
+    .some((issue) => issue.includes('CRON_SECRET')))
+  assert.deepEqual(productionConfigIssues(validProductionEnv), [])
 })
 
 test('production config errors name variables/rules without echoing secret values', () => {

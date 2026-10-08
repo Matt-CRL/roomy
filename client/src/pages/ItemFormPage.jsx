@@ -4,6 +4,7 @@ import AppNavbar from '../components/layout/AppNavbar'
 import { categoryGroups } from '../data/categoryOptions'
 import { getPhotoAdjustment, getPhotoImageStyle } from '../data/photoDisplay'
 import ImageCursorTrail from '../components/effects/ImageCursorTrail'
+import { isItemPhotoSizeAllowed } from '../utils/itemPhotoSize'
 
 const ITEM_NAME_MAX_LENGTH = 80
 const ITEM_NOTES_MAX_LENGTH = 500
@@ -381,7 +382,7 @@ export default function ItemFormPage({
               <div className="flex flex-col text-xs text-slate-900">
                 <h2 className="font-semibold">Item photo</h2>
                 <p className="mt-1 text-[10px] font-normal text-slate-500">
-                  Upload a photo for inventory reference only.
+                  Upload a JPEG, PNG, or WebP image up to 4 MiB for inventory reference.
                 </p>
                 <p className="mt-4 text-[10px] font-semibold text-slate-600">
                   Reference photo
@@ -401,7 +402,7 @@ export default function ItemFormPage({
                 <input ref={photoInputRef} type="file" aria-label="Choose item photo" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
                   const file = event.target.files?.[0]
                   if (!file) return
-                  if (file.size > 5 * 1024 * 1024) { setActionError('Use an image smaller than 5 MB.'); return }
+                  if (!isItemPhotoSizeAllowed(file.size)) { setActionError('Choose an image no larger than 4 MiB.'); return }
                   setPhotoFile(file)
                   setForm((currentForm) => ({
                     ...currentForm,
