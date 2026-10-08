@@ -4,16 +4,16 @@ Roomy is a personal room inventory and approximate 2D layout-planning web
 application. It helps people record belongings, remember where items are
 stored, and organise rooms while rearranging or decorating their space.
 
-> **Status — 2026-10-09:** Core features are implemented and available locally.
-> The selected Supabase project (`roomy-production`) passed its runtime and
-> photo-maintenance security preflight on 2026-10-08; earlier QA on that
-> project verified account isolation, private photos and cleanup, and planner
-> persistence. Vercel configuration work is underway, but no Vercel project
-> has been deployed or connected yet. Manual browser QA and backup/recovery
-> review also remain, so Roomy is not yet ready for public use.
+> **Status — 2026-10-09:** Roomy is deployed on Vercel, with Supabase providing
+> authentication, PostgreSQL, and private photo storage. The `roomy-production`
+> database passed the runtime and photo-maintenance security preflight. The owner
+> has manually confirmed core live workflows, including sign-in, saved data,
+> planner changes, photos, and storage actions. This is smoke-test evidence, not
+> a complete production audit: backup/recovery, scheduled cleanup, and some
+> hosting-security and accessibility checks still need verification.
 
-**Live site:** Not deployed yet
-**API:** Runs locally; Vercel function configuration is prepared but not deployed
+**Live site:** [roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/)
+**API:** [roomy-api.vercel.app](https://roomy-api.vercel.app/)
 
 ## Start here
 
@@ -46,8 +46,7 @@ moving, resizing, rotating, appearance settings, undo/redo, and automatic saves.
 
 - Node.js 20+, Express, PostgreSQL, and `pg`
 - Supabase for PostgreSQL hosting, email/password authentication, and private photos
-- Intended host: Vercel Hobby, with separate frontend and API projects
-- Hosting configuration and hosted behavior remain unverified until deployed
+- Vercel Hobby, with separate frontend and API projects
 
 The real mode uses the Express API for inventory and layouts. External services
 must be configured before that mode can run.
@@ -203,28 +202,33 @@ not.
 
 ## Deploying on Vercel
 
-Roomy is being prepared for two Vercel projects connected to this repository:
+Roomy is deployed as two Vercel projects connected to this repository:
 
 | Vercel project | Root directory | Build | Output / runtime |
 | --- | --- | --- | --- |
-| Frontend | `client` | `npm run build` | Static Vite output in `dist`; `client/vercel.json` provides SPA route rewrites and browser security headers. |
-| API | `server` | Vercel Express detection | Express app exported by `server/index.js` as a Vercel Function; `server/vercel.json` schedules photo cleanup. |
+| Frontend — `roomy` | `client` | `npm run build` | Static Vite output in `dist`; `client/vercel.json` provides SPA route rewrites and browser security headers. Live at [roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/). |
+| API — `roomy-api` | `server` | Vercel Express detection | Express app exported by `server/index.js` as a Vercel Function; `server/vercel.json` schedules photo cleanup. Base URL: [roomy-api.vercel.app](https://roomy-api.vercel.app/). |
 
-These project settings are not yet configured in a Vercel account, and there
-is no public Roomy URL yet. Add the frontend's four `VITE_` values as build
-environment variables. Add the database URLs, Supabase secret, exact frontend
-origin in `CORS_ORIGINS`, `PUBLIC_HTTPS=true`, and `CRON_SECRET` only to the API
-project. Keep `MIGRATION_DATABASE_URL` off the API host. Configure preview
-environments intentionally; Vercel preview URLs are public unless protected,
-and should not receive production secrets by default.
+The API URL is for app requests, not a user-facing webpage; opening it directly
+may return a route or JSON response.
+
+The live projects use environment variables configured in the Vercel dashboard.
+For a new deployment, add the frontend's four `VITE_` values as build
+environment variables. Add database URLs, Supabase server credentials, the exact
+frontend origin in `CORS_ORIGINS`, `PUBLIC_HTTPS=true`, and `CRON_SECRET` only to
+the API project. Keep `MIGRATION_DATABASE_URL` off the API host. Configure
+preview environments intentionally; preview URLs may be publicly reachable and
+must not receive production secrets by default. Never copy real values into this
+repository or a frontend variable.
 
 The API processes a small photo-cleanup batch after successful changes and
 Vercel retries the remaining durable queue daily. Hobby runs cron once a day,
-with up to 59 minutes of scheduling variation. Image uploads are limited to
-4 MiB to stay under Vercel's function request-size limit. Public signup and
-password recovery also require Supabase Auth email delivery to be configured
-for outside users. Hosted Auth redirects, SMTP, backup/recovery, response
-headers, and an actual scheduled run still need verification before launch.
+with up to 59 minutes of scheduling variation; the actual scheduled invocation
+still needs to be observed. Image uploads are limited to 4 MiB to stay under
+Vercel's function request-size limit. Supabase Auth email delivery is configured
+and recovery-email delivery has been observed. Full confirmation/recovery-flow
+coverage, backups, actual response headers, and other remaining checks are listed
+under [Known issues and next steps](#known-issues-and-next-steps).
 
 ## Features and usage
 
@@ -233,7 +237,8 @@ headers, and an actual scheduled run still need verification before launch.
 - Real mode supports email/password sign-up and sign-in through Supabase Auth.
 - Users can request a password-reset email and set a new password from its
   recovery link. Configure the allowed redirect URLs in Supabase for each
-  environment; browser testing of this flow is still pending.
+  environment. Recovery-email delivery has been observed on the live service;
+  complete end-to-end confirmation and recovery testing remains to be recorded.
 
 ### Rooms
 
@@ -348,19 +353,19 @@ examples and validation details are in [docs/backend.md](docs/backend.md).
 
 ## Current deployment status
 
-The Vercel project setup described above is prepared in the repository but has
-not been connected to a Vercel account or deployed. The GitHub Pages workflow
-is manual-only; pushes no longer publish the app there. Release builds require
-explicit real-mode configuration and the public `VITE_` settings above. The
-production API requires restricted runtime and maintenance roles.
+The frontend and API are deployed to Vercel and use the `roomy-production`
+Supabase project. The GitHub Pages workflow is manual-only; pushes do not publish
+the app there. Release builds require explicit real-mode configuration and the
+public `VITE_` settings above. The production API requires restricted runtime
+and maintenance roles.
 
 The selected Supabase project, now named `roomy-production` (formerly
-`roomy-test-qa`), passed `npm run db:preflight`; earlier QA on that project
-also verified two-account API isolation. The separate original Supabase
-project is unchanged and is not the app's database. Backup/recovery, hosted
-email delivery, browser workflows, Vercel configuration, scheduled cleanup,
-and host-level security checks remain pending. Live site/API links will be
-added after deployment is verified.
+`roomy-test-qa`), passed `npm run db:preflight`; prior QA also verified two-account
+API isolation, private photos, cleanup, and planner persistence. The owner has
+since confirmed core workflows on the live site. The separate original Supabase
+project is unchanged and is not the app's database. Deployment is live, but
+backup/recovery, a real scheduled cleanup run, and complete host-level security
+and browser checks remain outstanding.
 
 ## Project structure
 
@@ -497,15 +502,16 @@ Recorded checks through **2026-10-09**:
 | --- | --- |
 | Server tests (`npm test` in `server/`) | 29 passed after Vercel preparation. |
 | Client configuration tests (`npm run test:config` in `client/`) | 9 passed after Vercel preparation. |
-| Client build | Demo build passed after Vercel preparation. Hosted real-mode build awaits the final API URL. |
+| Client build | Demo and synthetic HTTPS real-mode builds passed after Vercel preparation. The live site is serving the deployed frontend. |
 | Server production dependency audit | `npm audit --omit=dev` passed after updating the affected transitive dependency. |
 | Database and API | The selected `roomy-production` project passed the runtime/photo-maintenance security preflight on 2026-10-08. Earlier QA on that project verified two-account isolation, private photos and cleanup, and planner persistence/conflict handling. |
-| Frontend review | The owner reviewed the local website visually and reported that it looks good. Detailed workflow, responsive, keyboard, and theme checks still need recorded coverage. |
-| Production environment | Manual browser QA, backup/recovery review, SMTP, Vercel setup/deployment, and host-level checks remain pending. The separate original Supabase project is unchanged and is not the app database. |
+| Live browser smoke test | The owner confirmed sign-in, persistence, planner changes, photos, and storage actions on the deployed app. This does not cover every workflow or device. |
+| Authentication email | A recovery email was delivered through configured SMTP. Full sign-up confirmation and end-to-end recovery testing still need recorded results. |
+| Production operations/security | Vercel deployment is live. Backup/recovery review, observation of a scheduled cleanup run, complete response-header/CORS checks, responsive and keyboard coverage remain pending. The separate original Supabase project is unchanged and is not the app database. |
 
-Production verification remains pending for backup/recovery, deployment, and
-host-level security configuration. Database role requirements and rollout
-details are documented in the [security rollout runbook](server/SECURITY-ROLLOUT.md).
+Production verification remains incomplete for backups/recovery and several
+host-level checks. Database role requirements and rollout details are documented
+in the [security rollout runbook](server/SECURITY-ROLLOUT.md).
 
 To rerun the local test suites:
 
@@ -538,30 +544,31 @@ npm run test:config
 
 ![Roomy Add Item form](docs/assets/add-item-form.png)
 
-These screenshots show local versions of the Roomy frontend. Their freshness
-against the latest interface still needs review; production deployment remains
-pending.
+These screenshots show the Roomy frontend; their freshness against the latest
+interface still needs review. The live app is available at
+[roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/).
 
 ## Known issues and next steps
 
 - The selected Supabase project (renamed `roomy-production`, formerly
   `roomy-test-qa`) passes the runtime/photo-maintenance preflight. The separate
   original Supabase project remains unchanged and is no longer the app target.
-  Database and Storage backup/recovery arrangements still need confirmation
-  before public use.
-- Detailed browser coverage remains to be recorded for signup/login/password
-  recovery, storage workflows, photo adjustments, planner drag/resize/rotate,
-  undo/redo, autosave/manual save, and reload/error recovery. The owner's visual
-  review does not establish complete coverage of those interactions.
+  Confirm database and Storage backup/recovery arrangements before relying on
+  Roomy to keep important inventory data.
+- The owner has smoke-tested core live workflows, but detailed coverage remains
+  to be recorded for signup confirmation/password recovery, photo adjustment,
+  planner drag/resize/rotate, undo/redo, autosave/manual save, and reload/error
+  recovery.
 - Responsive layouts, keyboard navigation, focus behavior, and both themes
   need further checks across desktop, tablet, and phone sizes.
-- The app has not been verified on a production frontend/API/database host.
+- Database and Storage backup/recovery arrangements need confirmation; a real
+  scheduled cleanup invocation and complete deployed response-header/CORS checks
+  have not yet been recorded.
 - Demo browser data is not imported into real accounts automatically.
-- Screenshot freshness and the AI usage record still need updates for the
-  latest development and QA work.
+- Screenshot freshness still needs review against the current live interface.
 
-The remaining work is focused on manual browser checks, backup/recovery review,
-and configuring and verifying the production frontend/API hosting.
+The remaining work is focused on closing these verification and operational
+gaps; the frontend and API hosting are already deployed.
 
 ## Planned work
 
@@ -570,10 +577,15 @@ and configuring and verifying the production frontend/API hosting.
 2. Test mobile/tablet layouts, keyboard navigation, focus, and both themes;
    address any confirmed issues.
 3. Refresh screenshots and update the backend documentation and AI usage record.
-4. Confirm database and Storage backup/recovery coverage; configure both Vercel
-   projects, environment variables, CORS, Supabase Auth redirects, and SMTP.
-5. Verify the live frontend/API/database setup and publish its links. Keep the
-   demo video, slides, and presentation image outside this repository.
+4. Confirm database and Storage backup/recovery coverage; record deployed
+   security-header/CORS checks and observe a scheduled cleanup run.
+5. Finish and record the remaining live browser checks, refresh screenshots and
+   AI attribution as needed. Keep the demo video, slides, and presentation image
+   outside this repository.
+6. Explore optional AI assistance, such as suggesting item names or categories
+   from a photo, answering natural-language questions about a user's inventory,
+   or proposing planner layouts. Keep suggestions user-reviewed, and assess
+   privacy and data handling before choosing or building any feature.
 
 ## Author
 
