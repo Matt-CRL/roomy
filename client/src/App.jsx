@@ -58,6 +58,11 @@ function readAppRoute(pathname = window.location.pathname) {
   return { page: 'inventory', roomId: parts[1], itemId: null }
 }
 
+function readPasswordRecoveryRoute() {
+  const query = new URLSearchParams(window.location.search)
+  return query.get('flow') === 'recovery' && !query.has('error') && !query.has('error_code')
+}
+
 function appPath(page, roomId, itemId) {
   if (page === 'login') return '/login'
   if (page === 'rooms' || !roomId) return '/rooms'
@@ -532,6 +537,7 @@ export default function App() {
   const [selectedItem, setSelectedItem] = useState(null)
   const [routeItemId, setRouteItemId] = useState(initialRoute.itemId)
   const [session, setSession] = useState(api.USING_MOCK_API ? true : undefined)
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(readPasswordRecoveryRoute)
   const [demoDisplayName, setDemoDisplayName] = useState('')
   const [isDemoSignedOut, setIsDemoSignedOut] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -663,6 +669,12 @@ export default function App() {
     },
   }
 
+  function handlePasswordRecoveryComplete() {
+    setIsPasswordRecovery(false)
+    goToRoute('rooms', { replace: true })
+    window.history.replaceState(window.history.state, '', toPublicPath('/rooms'))
+  }
+
   const displayName = api.USING_MOCK_API
     ? demoDisplayName || 'User'
     : session?.user?.user_metadata?.display_name || session?.user?.email?.split('@')[0] || 'User'
@@ -736,6 +748,7 @@ export default function App() {
     })
     const { data } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (active) {
+        if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true)
         const previousSession = knownSession
         knownSession = nextSession
         if (previousSession?.user?.id && nextSession?.user?.id && previousSession.user.id !== nextSession.user.id) {
@@ -1237,8 +1250,13 @@ export default function App() {
       }}
     />
   }
-  if (!api.USING_MOCK_API && !session) {
-    return <AuthPage isDarkMode={isDarkMode} onToggleTheme={handleToggleTheme} />
+  if (!api.USING_MOCK_API && (isPasswordRecovery || !session)) {
+    return <AuthPage
+      isDarkMode={isDarkMode}
+      onToggleTheme={handleToggleTheme}
+      passwordRecovery={isPasswordRecovery}
+      onPasswordRecoveryComplete={handlePasswordRecoveryComplete}
+    />
   }
 
   if (currentPage === 'planner') {
@@ -1282,6 +1300,7 @@ export default function App() {
           rooms={roomsWithCounts}
           onSave={handleSaveItem}
           onDeleteItem={handleDeleteItem}
+          onLoadPhoto={loadPhotoForItem}
           onMoveItem={handleMoveItem}
           onSignOut={shellProps.onSignOut}
           displayName={displayName}

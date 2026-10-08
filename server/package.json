@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --env-file=.env --watch server.js",
-    "db:migrate": "node --env-file=.env db/migrate.js",
+    "db:migrate": "node --env-file=.env.migrate db/migrate.js",
     "db:preflight": "node --env-file=.env db/preflight-cli.js",
     "test": "node --test"
   },

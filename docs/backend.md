@@ -14,12 +14,10 @@ second owner check; production startup rejects owner/BYPASSRLS runtime roles.
 Use Node.js 20 or newer. Follow the root [README](../README.md) and
 [security rollout runbook](../server/SECURITY-ROLLOUT.md) for Supabase project
 setup, roles, `.env` variables, the private bucket, migrations, and run
-commands. Run `npm run db:migrate` with the migration-only login. Migrations
-are recorded in `roomy_migrations` and do not clear user data. Migration 005
-and the restricted database roles have passed checks in a separate test
-project. The original Supabase project has not been changed; applying that
-migration or switching its API credentials still requires a separate,
-reviewed production cutover.
+commands. Runtime settings belong in `.env`; reviewed migrations use the
+separate ignored `.env.migrate` file, copied from `.env.migrate.example`, so
+the migration login is not loaded by the API. Migrations are recorded in
+`roomy_migrations` and do not clear user data.
 
 ## Main requests
 
@@ -127,10 +125,14 @@ production configuration, policy/role preflight logic, and unauthenticated
 HTTP checks. These tests do not replace checks against a real database or
 manual browser testing.
 
-### Verified QA results — 2026-10-05
+### Verified database security results — 2026-10-05; preflight rechecked 2026-10-08
 
-The following checks passed against a separate Supabase test project, not
-the original project or a deployed production environment:
+The project used for QA was renamed by its owner to `roomy-production` and is
+now the selected Roomy database. These checks were run against that same
+Supabase project; renaming its dashboard display name did not change its
+project URL or credentials. The 2026-10-08 read-only preflight passed again
+using the persistent local API configuration. This does not verify a deployed
+environment or the separate original Supabase project, which remains unchanged.
 
 - All migrations (001–005) were applied. Separate runtime and
   photo-maintenance logins passed the database security preflight, including
@@ -162,12 +164,14 @@ checks. No credentials or session tokens are included in this documentation.
 
 ### Still unverified
 
-The original Supabase project has not received the tested role/RLS cutover.
-Production hosting, credentials, Auth redirects, CORS, security headers, and
-live frontend/API/database behavior require their own review and verification.
-The isolated QA results do not establish that production access control has
-passed. Follow the [security rollout runbook](../server/SECURITY-ROLLOUT.md)
-before making changes to an existing database.
+The selected `roomy-production` project has the tested role/RLS setup and
+passed the read-only security preflight again on 2026-10-08. The separate
+original Supabase project has not received these changes and is not the
+selected app database. Database/Storage backup and recovery coverage, manual
+browser workflows, production hosting, Auth redirects, CORS, host security
+headers, and deployed frontend/API/database behavior still require their own
+review and verification. See the [security rollout record](../server/SECURITY-ROLLOUT.md)
+for historical findings on the original project and the current boundary.
 
 Detailed browser coverage remains pending for signup/login and session
 behavior, inventory/storage workflows, photo editing, planner

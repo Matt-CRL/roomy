@@ -127,21 +127,21 @@ repository has already been cloned.
 1. Create a Supabase project. Enable email/password authentication and create
    a **private** Storage bucket named `roomy-item-photos`. Keep the database
    password and secret key out of Git.
-2. In `server/.env`, set `DATABASE_URL`, `MIGRATION_DATABASE_URL`,
-   `PHOTO_CLEANUP_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`,
-   and `SUPABASE_SECRET_KEY` as described in
-   [the security rollout runbook](server/SECURITY-ROLLOUT.md). Keep migration
-   credentials out of the running API host.
+2. In `server/.env`, set `DATABASE_URL`, `PHOTO_CLEANUP_DATABASE_URL`,
+   `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY` as
+   described in [the security rollout runbook](server/SECURITY-ROLLOUT.md).
+   Keep the migration credential out of this runtime file and the running API.
 3. In `client/.env`, set `VITE_USE_MOCK_API=false`, `VITE_API_BASE_URL`,
    `VITE_SUPABASE_URL`, and `VITE_SUPABASE_PUBLISHABLE_KEY`.
    The client and server must use the same Supabase project. For local use,
    set `VITE_API_BASE_URL=http://localhost:3000`,
    `CORS_ORIGINS=http://localhost:5173`, and `NODE_ENV=development`.
 4. Follow the role setup and migration procedure in
-   [the security rollout runbook](server/SECURITY-ROLLOUT.md). For a new
-   database, run `npm run db:migrate` from `server/` using the migration-only
-   credential. Review the cutover procedure before migrating an existing
-   database. The migration runner tracks applied files and does not seed or
+   [the security rollout runbook](server/SECURITY-ROLLOUT.md). Before applying
+   reviewed migrations, copy `server/.env.migrate.example` to
+   `server/.env.migrate`, set its migration and runtime database URLs, then run
+   `npm run db:migrate` from `server/`. This separate ignored file is not loaded
+   by the API. The migration runner tracks applied files and does not seed or
    erase user data.
 5. From `server/`, run `npm run db:preflight` to check database permissions
    without changing data. Resolve any reported issues before relying on the
@@ -171,7 +171,7 @@ belong in `server/.env`. Demo mode needs only `VITE_USE_MOCK_API=true`.
 | `VITE_SUPABASE_URL` | `https://your-project.supabase.co` | Public Auth project URL. |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_...` | Public browser key; never use a server secret/service key here. |
 | `DATABASE_URL` | Restricted runtime connection | Server-only PostgreSQL login; not an owner or RLS-bypass role. |
-| `MIGRATION_DATABASE_URL` | Migration-only connection | Administrative connection for migrations; not used by the API process. |
+| `MIGRATION_DATABASE_URL` | `server/.env.migrate` only | Administrative connection for reviewed migrations; never put it in the API `.env`, a host runtime, or a `VITE_` variable. |
 | `PHOTO_CLEANUP_DATABASE_URL` | Restricted cleanup connection | Separate worker login limited to the photo cleanup table. |
 | `DATABASE_SSL_CA_FILE` | `C:\path\outside-repo\supabase-ca.pem` | Optional local path to the database root certificate for verified TLS. |
 | `SUPABASE_URL` | `https://your-project.supabase.co` | Server's Auth and Storage project URL. |
@@ -499,8 +499,11 @@ pending.
 
 ## Known issues and next steps
 
-- Database and API security checks pass in an isolated test project. The
-  original Supabase project's production role/RLS cutover remains pending.
+- The selected Supabase project (renamed `roomy-production`, previously the
+  QA project) passes the runtime/photo-maintenance preflight. The separate
+  original Supabase project remains unchanged and is no longer the app target.
+  Database and Storage backup/recovery arrangements still need confirmation
+  before public use.
 - Detailed browser coverage remains to be recorded for signup/login, storage
   workflows, photo adjustments, planner drag/resize/rotate, undo/redo,
   autosave/manual save, and reload/error recovery. The owner's visual review
@@ -512,18 +515,18 @@ pending.
 - Screenshot freshness and the AI usage record still need updates for the
   latest development and QA work.
 
-The remaining work is focused on completing recorded browser checks, updating
-project documentation, and reviewing the production setup and database cutover.
+The remaining work is focused on manual browser checks, backup/recovery review,
+and configuring and verifying the production frontend/API hosting.
 
 ## Planned work
 
-1. Record manual browser checks against the QA project, including authentication,
+1. Record manual browser checks against the selected project, including authentication,
    inventory/storage, photos, planner interactions, saves, and error recovery.
 2. Test mobile/tablet layouts, keyboard navigation, focus, and both themes;
    address any confirmed issues.
 3. Refresh screenshots and update the backend documentation and AI usage record.
-4. Review production roles, migration 005, backups, API hosting, and Vercel
-   frontend settings, including environment variables, CORS, and Auth redirects.
+4. Confirm database and Storage backup/recovery coverage; choose the API host
+   and configure Vercel, including environment variables, CORS, and Auth redirects.
 5. Verify the live frontend/API/database setup and publish its links. Keep the
    demo video, slides, and presentation image outside this repository.
 

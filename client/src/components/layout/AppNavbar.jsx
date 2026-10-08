@@ -28,6 +28,7 @@ export default function AppNavbar({
   const [nameDraft, setNameDraft] = useState(displayLabel)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busyAction, setBusyAction] = useState('')
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -65,6 +66,7 @@ export default function AppNavbar({
 
   function openMenu() {
     setIsOpen((open) => !open)
+    setShowPassword(false)
     setStatus('')
     setError('')
     setIsDeleteConfirming(false)
@@ -110,6 +112,7 @@ export default function AppNavbar({
       await onChangePassword?.(newPassword)
       setNewPassword('')
       setConfirmPassword('')
+      setShowPassword(false)
       setStatus('Password updated.')
     } catch (cause) {
       setError(cause.message || 'Could not update the password.')
@@ -137,12 +140,12 @@ export default function AppNavbar({
       <img
         src={lightLogo}
         alt="Roomy"
-        className={`app-navbar-logo-light relative z-10 h-8 w-auto shrink-0 object-contain sm:h-10 ${location.length ? 'max-w-[32vw]' : 'max-w-[42vw]'} sm:max-w-none`}
+        className="app-navbar-logo-light relative z-10 h-8 w-auto max-w-[32vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
       />
       <img
         src={darkLogo}
         alt="Roomy"
-        className={`app-navbar-logo-dark relative z-10 h-8 w-auto shrink-0 object-contain sm:h-10 ${location.length ? 'max-w-[32vw]' : 'max-w-[42vw]'} sm:max-w-none`}
+        className="app-navbar-logo-dark relative z-10 h-8 w-auto max-w-[32vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
       />
 
       {location.length > 0 && (
@@ -250,18 +253,29 @@ export default function AppNavbar({
               <p className="mt-1 text-xs leading-5 text-slate-600">At least 8 characters with at least one uppercase, one lowercase, one number, and one symbol (!, @, #, $, %, etc.).</p>
               <label className="mt-3 block text-xs font-semibold text-slate-900">
                 New password
-                <input
-                  type="password"
-                  value={newPassword}
-                  autoComplete="new-password"
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className="night-form-control mt-2 min-h-10 w-full border border-slate-300 bg-white px-3 text-sm font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
-                />
+                <span className="relative mt-2 block">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    autoComplete="new-password"
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="night-form-control min-h-10 w-full border border-slate-300 bg-white px-3 pr-16 text-sm font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showPassword ? 'Hide password and confirmation' : 'Show password and confirmation'}
+                    aria-pressed={showPassword}
+                    onClick={() => setShowPassword((visible) => !visible)}
+                    className="auth-password-toggle absolute inset-y-0 right-0 px-3 text-sm font-medium text-slate-600 hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                  >
+                    {showPassword ? 'Hide' : 'Show'}
+                  </button>
+                </span>
               </label>
               <label className="mt-3 block text-xs font-semibold text-slate-900">
                 Confirm password
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   autoComplete="new-password"
                   onChange={(event) => setConfirmPassword(event.target.value)}
