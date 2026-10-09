@@ -10,11 +10,11 @@ import {
   maximumDepthForRoom,
   maximumUniformScale,
   maximumWidthForRoom,
-  minimumRoomDimensions,
   normalizeAngle,
   PLANNER_MAX_DIMENSION,
   PLANNER_MIN_DIMENSION,
   round,
+  rotatedSpan,
   snapRotation,
 } from '../utils/plannerGeometry'
 
@@ -400,10 +400,15 @@ export default function PlannerWorkspace({
       .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), undefined, { sensitivity: 'base', numeric: true }))
   }, [items, searchTerm, itemTypeFilter])
 
-  const minimumDimensions = useMemo(() => minimumRoomDimensions([
-    ...layout.items,
-    ...(person ? [person] : []),
-  ]), [layout.items, person])
+  const minimumDimensions = useMemo(() => [...layout.items, ...(person ? [person] : [])].reduce((minimum, shape) => {
+    const span = rotatedSpan(Number(shape.width), Number(shape.depth), shape.rotation)
+    const roomWidth = Math.ceil(span.width * 100 - 1e-8) / 100
+    const roomDepth = Math.ceil(span.depth * 100 - 1e-8) / 100
+    return {
+      width: Math.max(minimum.width, roomWidth),
+      depth: Math.max(minimum.depth, roomDepth),
+    }
+  }, { width: PLANNER_MIN_DIMENSION, depth: PLANNER_MIN_DIMENSION }), [layout.items, person])
 
   useEffect(() => () => {
     if (roomItemsBounceTimeoutRef.current) window.clearTimeout(roomItemsBounceTimeoutRef.current)
@@ -766,6 +771,10 @@ export default function PlannerWorkspace({
     return clampShapePosition(next, widthCm, depthCm)
   }
 
+  function fitShapeToRoom(shape, roomWidth, roomDepth) {
+    return clampShapePosition(shape, roomWidth, roomDepth)
+  }
+
   function resizeWithAnchoredOpposite(shape, nextWidth, nextDepth, horizontal = 0, vertical = 0) {
     const widthChange = nextWidth - shape.width
     const depthChange = nextDepth - shape.depth
@@ -895,24 +904,46 @@ export default function PlannerWorkspace({
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
-    interactionRef.current = { type: 'wall', pointerId: event.pointerId, wall, startX: event.clientX, startY: event.clientY, initialWidth: widthCm, initialDepth: depthCm, snapshot: snapshot() }
+    const initialDraft = snapshot()
+    interactionRef.current = {
+      type: 'wall',
+      pointerId: event.pointerId,
+      wall,
+      startX: event.clientX,
+      startY: event.clientY,
+      scale: pointerScale(),
+      initialWidth: initialDraft.widthCm,
+      initialDepth: initialDraft.depthCm,
+      initialDraft,
+      snapshot: initialDraft,
+    }
     setSelectedWall(wall)
   }
 
   function dragWall(event) {
     const interaction = interactionRef.current
     if (!interaction || interaction.type !== 'wall' || interaction.pointerId !== event.pointerId) return
-    const scale = pointerScale()
+    const scale = interaction.scale
     const deltaX = (event.clientX - interaction.startX) / scale
     const deltaY = (event.clientY - interaction.startY) / scale
     const changesWidth = interaction.wall === 'left' || interaction.wall === 'right'
     const changesDepth = interaction.wall === 'top' || interaction.wall === 'bottom'
     const requestedWidth = interaction.wall === 'right' ? interaction.initialWidth + deltaX : interaction.wall === 'left' ? interaction.initialWidth - deltaX : interaction.initialWidth
     const requestedDepth = interaction.wall === 'bottom' ? interaction.initialDepth + deltaY : interaction.wall === 'top' ? interaction.initialDepth - deltaY : interaction.initialDepth
+    const nextWidth = changesWidth
+      ? round(clamp(requestedWidth, minimumDimensions.width, PLANNER_MAX_DIMENSION))
+      : interaction.initialWidth
+    const nextDepth = changesDepth
+      ? round(clamp(requestedDepth, minimumDimensions.depth, PLANNER_MAX_DIMENSION))
+      : interaction.initialDepth
     replaceDraft({
-      ...draftRef.current,
-      widthCm: changesWidth ? round(clamp(requestedWidth, minimumDimensions.width, PLANNER_MAX_DIMENSION)) : interaction.initialWidth,
-      depthCm: changesDepth ? round(clamp(requestedDepth, minimumDimensions.depth, PLANNER_MAX_DIMENSION)) : interaction.initialDepth,
+      ...interaction.initialDraft,
+      widthCm: nextWidth,
+      depthCm: nextDepth,
+      items: interaction.initialDraft.items.map((shape) => fitShapeToRoom(shape, nextWidth, nextDepth)),
+      person: interaction.initialDraft.person
+        ? fitShapeToRoom(interaction.initialDraft.person, nextWidth, nextDepth)
+        : null,
     })
   }
 
@@ -1011,10 +1042,20 @@ export default function PlannerWorkspace({
   function updateRoomDimension(field, rawValue) {
     const value = Number(rawValue)
     if (!Number.isFinite(value)) return
+    const current = draftRef.current
     const minimum = field === 'widthCm' ? minimumDimensions.width : minimumDimensions.depth
+    const nextWidth = field === 'widthCm'
+      ? round(clamp(value, minimum, PLANNER_MAX_DIMENSION))
+      : current.widthCm
+    const nextDepth = field === 'depthCm'
+      ? round(clamp(value, minimum, PLANNER_MAX_DIMENSION))
+      : current.depthCm
     replaceDraft({
-      ...draftRef.current,
-      [field]: round(clamp(value, minimum, PLANNER_MAX_DIMENSION)),
+      ...current,
+      widthCm: nextWidth,
+      depthCm: nextDepth,
+      items: current.items.map((shape) => fitShapeToRoom(shape, nextWidth, nextDepth)),
+      person: current.person ? fitShapeToRoom(current.person, nextWidth, nextDepth) : null,
     })
   }
 
