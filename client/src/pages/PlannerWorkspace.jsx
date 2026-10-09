@@ -10,11 +10,11 @@ import {
   maximumDepthForRoom,
   maximumUniformScale,
   maximumWidthForRoom,
+  minimumRoomDimensions,
   normalizeAngle,
   PLANNER_MAX_DIMENSION,
   PLANNER_MIN_DIMENSION,
   round,
-  rotatedSpan,
   snapRotation,
 } from '../utils/plannerGeometry'
 
@@ -400,15 +400,10 @@ export default function PlannerWorkspace({
       .sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''), undefined, { sensitivity: 'base', numeric: true }))
   }, [items, searchTerm, itemTypeFilter])
 
-  const minimumDimensions = useMemo(() => [...layout.items, ...(person ? [person] : [])].reduce((minimum, shape) => {
-    const span = rotatedSpan(Number(shape.width), Number(shape.depth), shape.rotation)
-    const roomWidth = Math.ceil(span.width * 100 - 1e-8) / 100
-    const roomDepth = Math.ceil(span.depth * 100 - 1e-8) / 100
-    return {
-      width: Math.max(minimum.width, roomWidth),
-      depth: Math.max(minimum.depth, roomDepth),
-    }
-  }, { width: PLANNER_MIN_DIMENSION, depth: PLANNER_MIN_DIMENSION }), [layout.items, person])
+  const minimumDimensions = useMemo(() => minimumRoomDimensions([
+    ...layout.items,
+    ...(person ? [person] : []),
+  ]), [layout.items, person])
 
   useEffect(() => () => {
     if (roomItemsBounceTimeoutRef.current) window.clearTimeout(roomItemsBounceTimeoutRef.current)
@@ -1361,7 +1356,7 @@ export default function PlannerWorkspace({
                           ['x', 'X (cm)'],
                           ['y', 'Y (cm)'],
                           ['rotation', 'Rotation (°)'],
-                        ].map(([field, label]) => <label key={field} className="text-[10px] font-semibold text-slate-700">{label}<input type="number" min={field === 'rotation' ? 0 : 1} step="0.1" value={selectedShape[field]} onFocus={startInspectorEdit} onBlur={finishInspectorEdit} onChange={(event) => updateInspectorField(field, event.target.value)} className="mt-1 min-h-9 w-full border border-slate-300 bg-white px-2 text-xs font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>)}
+                        ].map(([field, label]) => <label key={field} className="text-[10px] font-semibold text-slate-700">{label}<input type="number" min={field === 'rotation' ? 0 : field === 'x' || field === 'y' ? -PLANNER_MAX_DIMENSION : 1} step="0.1" value={selectedShape[field]} onFocus={startInspectorEdit} onBlur={finishInspectorEdit} onChange={(event) => updateInspectorField(field, event.target.value)} className="mt-1 min-h-9 w-full border border-slate-300 bg-white px-2 text-xs font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>)}
                       </div>
                     </div>
                     <div className="mt-4 border-t border-slate-200 pt-4">

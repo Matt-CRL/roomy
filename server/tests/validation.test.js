@@ -61,6 +61,22 @@ test('layout rejects duplicates and shapes beyond user room dimensions', () => {
   assert.throws(() => layoutInput({ revision: 0, widthCm: 300, items: [shape] }, room), /together/)
 })
 
+test('layout accepts negative unrotated origins only when the rotated footprint stays inside the room', () => {
+  const room = { width_cm: 35.01, depth_cm: 108.34 }
+  const shape = {
+    itemId: 'bfa3aca1-45c4-4c93-93c0-e781059e050a',
+    x: -36.66,
+    y: 36.67,
+    width: 108.33,
+    depth: 35,
+    rotation: 90,
+  }
+
+  assert.equal(layoutInput({ revision: 0, items: [shape] }, room).items[0].x, -36.66)
+  assert.throws(() => layoutInput({ revision: 0, items: [{ ...shape, x: -36.67 }] }, room), /outside/)
+  assert.throws(() => layoutInput({ revision: 0, items: [{ ...shape, rotation: 0 }] }, room), /outside/)
+})
+
 test('planner save updates the room and placed item dimensions in one transaction', async () => {
   const ownerId = 'test-owner'
   const roomId = '5ac095c1-6d15-436b-a764-f62bb4d7537f'

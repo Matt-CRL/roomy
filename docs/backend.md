@@ -101,8 +101,12 @@ Content-Type: application/json
 `GET /api/rooms/<room-uuid>/layout` returns the current revision and shapes.
 The save replaces that room's placements and increments the revision. A stale
 save returns `409`. Coordinates and footprints are approximate centimeters
-relative to the room. Saving a changed shape footprint updates that item's
-Width/Depth values. Stored items cannot be placed individually on the planner.
+relative to the room. `x` and `y` locate the unrotated shape origin; after
+migration 006 they may be negative for a rotated shape, provided its visible
+rotated footprint remains entirely inside the room. Apply migration 006 before
+deploying code that saves such positions. Saving a changed shape footprint
+updates that item's Width/Depth values. Stored items cannot be placed
+individually on the planner.
 
 Upload a photo with `POST /api/items/<item-uuid>/photo`, sending raw image
 bytes and a matching JPEG, PNG, or WebP `Content-Type`. Maximum size is 4 MiB
