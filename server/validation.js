@@ -144,7 +144,7 @@ export function layoutInput(body, room) {
     const rotatedDepth = width * Math.abs(Math.sin(radians)) + depth * Math.abs(Math.cos(radians))
     const centerX = x + width / 2
     const centerY = y + depth / 2
-    if (x < 0 || y < 0 || width <= 0 || depth <= 0 || centerX - rotatedWidth / 2 < -0.0001 || centerY - rotatedDepth / 2 < -0.0001 || centerX + rotatedWidth / 2 > roomWidth + 0.0001 || centerY + rotatedDepth / 2 > roomDepth + 0.0001) {
+    if (width <= 0 || depth <= 0 || centerX - rotatedWidth / 2 < -0.0001 || centerY - rotatedDepth / 2 < -0.0001 || centerX + rotatedWidth / 2 > roomWidth + 0.0001 || centerY + rotatedDepth / 2 > roomDepth + 0.0001) {
       throw badRequest('A shape is outside the room dimensions')
     }
     const color = entry.color ?? '#1d1b31'

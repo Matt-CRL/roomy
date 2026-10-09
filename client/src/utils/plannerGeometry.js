@@ -67,9 +67,9 @@ export function clampShapePosition(shape, roomWidth, roomDepth) {
   const depth = Number(shape.depth)
   const positionStep = 100
   const quantizationEpsilon = 1e-8
-  const minX = Math.max(0, (bounds.width - width) / 2)
+  const minX = (bounds.width - width) / 2
   const maxX = Number(roomWidth) - (bounds.width + width) / 2
-  const minY = Math.max(0, (bounds.depth - depth) / 2)
+  const minY = (bounds.depth - depth) / 2
   const maxY = Number(roomDepth) - (bounds.depth + depth) / 2
   const safeMinX = Math.ceil(minX * positionStep - quantizationEpsilon) / positionStep
   const safeMaxX = Math.floor(maxX * positionStep + quantizationEpsilon) / positionStep
@@ -82,7 +82,7 @@ export function clampShapePosition(shape, roomWidth, roomDepth) {
     ? clamp(round(shape.y), safeMinY, safeMaxY)
     : round(shape.y)
 
-  return { ...shape, x, y }
+  return { ...shape, x: x === 0 ? 0 : x, y: y === 0 ? 0 : y }
 }
 
 export function maximumWidthForRoom(depth, rotation, roomWidth, roomDepth) {
@@ -120,10 +120,28 @@ export function maximumUniformScale(shape, roomWidth, roomDepth) {
 
 export function minimumRoomDimensions(shapes) {
   return shapes.reduce((minimum, shape) => {
-    const bounds = rotatedBounds(shape)
+    const width = Number(shape.width)
+    const depth = Number(shape.depth)
+    const span = rotatedSpan(width, depth, shape.rotation)
+    const minimumDimension = (objectDimension, footprintDimension) => {
+      let roomDimension = Math.ceil(footprintDimension * 100 - 1e-8) / 100
+      const hasValidPosition = (dimension) => {
+        const minimumPosition = (footprintDimension - objectDimension) / 2
+        const maximumPosition = dimension - (footprintDimension + objectDimension) / 2
+        const safeMinimum = Math.ceil(minimumPosition * 100 - 1e-8)
+        const safeMaximum = Math.floor(maximumPosition * 100 + 1e-8)
+        return safeMinimum <= safeMaximum
+      }
+
+      while (!hasValidPosition(roomDimension) && roomDimension < PLANNER_MAX_DIMENSION) {
+        roomDimension = round(roomDimension + 0.01)
+      }
+      return roomDimension
+    }
+
     return {
-      width: Math.max(minimum.width, bounds.maxX),
-      depth: Math.max(minimum.depth, bounds.maxY),
+      width: Math.max(minimum.width, minimumDimension(width, span.width)),
+      depth: Math.max(minimum.depth, minimumDimension(depth, span.depth)),
     }
   }, { width: PLANNER_MIN_DIMENSION, depth: PLANNER_MIN_DIMENSION })
 }
