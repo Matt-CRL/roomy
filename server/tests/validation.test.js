@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { roomInput, itemInput, contentsDecision, layoutInput } from '../validation.js'
-import { saveLayout } from '../roomyRepo.js'
+import { getLayout, saveLayout, updateItem } from '../roomyRepo.js'
 
 test('room dimensions must be a positive cm pair', () => {
   assert.deepEqual(roomInput({ name: ' Bedroom ', widthCm: 300, depthCm: 420 }),
@@ -118,4 +118,116 @@ test('planner save updates the room and placed item dimensions in one transactio
   assert.ok(calls.some(({ sql, values }) => sql.startsWith('UPDATE roomy_rooms SET width_cm') && values[2] === 360 && values[3] === 440))
   assert.equal(calls[0].sql, 'BEGIN')
   assert.equal(calls.at(-1).sql, 'COMMIT')
+})
+
+test('editing placed item dimensions invalidates stale planner revisions', async () => {
+  const ownerId = 'test-owner'
+  const roomId = '5ac095c1-6d15-436b-a764-f62bb4d7537f'
+  const itemId = 'bfa3aca1-45c4-4c93-8fdc-e781059e050a'
+  const calls = []
+  const item = {
+    id: itemId, owner_id: ownerId, room_id: roomId, name: 'Desk', category: 'Furniture',
+    notes: '', is_storage_unit: false, parent_storage_id: null, width_cm: 80.5,
+    depth_cm: 60.25, photo_path: null, photo_fit: 'cover', photo_position: 'center',
+    photo_position_x: 50, photo_position_y: 50, photo_zoom: 1,
+    created_at: new Date(), updated_at: new Date('2026-10-09T00:00:00.000Z'),
+  }
+  const client = {
+    async query(sql, values = []) {
+      calls.push({ sql, values })
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] }
+      if (sql.startsWith('SELECT id, owner_id, room_id')) return { rows: [{ ...item }] }
+      if (sql.startsWith('SELECT 1 FROM roomy_categories')) return { rows: [{}], rowCount: 1 }
+      if (sql.startsWith('SELECT li.x,li.y')) return { rows: [{
+        x: 40, y: 50, width: 80.5, depth: 60.25, rotation: 90, width_cm: 300, depth_cm: 400,
+      }] }
+      if (sql.startsWith('UPDATE roomy_layouts SET revision=revision+1')) return { rows: [], rowCount: 1 }
+      if (sql.startsWith('UPDATE roomy_items SET name=')) {
+        item.width_cm = values[7]
+        item.depth_cm = values[8]
+        item.updated_at = new Date('2026-10-10T00:00:00.000Z')
+        return { rows: [{ ...item }] }
+      }
+      return { rows: [] }
+    },
+    release() {},
+  }
+
+  const updated = await updateItem({ connect: async () => client }, ownerId, itemId, {
+    widthCm: 80.5,
+    depthCm: 45.25,
+  })
+
+  assert.equal(updated.widthCm, 80.5)
+  assert.equal(updated.depthCm, 45.25)
+  assert.ok(calls.some(({ sql }) => sql.startsWith('UPDATE roomy_layouts SET revision=revision+1')))
+  const placementUpdate = calls.find(({ sql }) => sql.startsWith('UPDATE roomy_layout_items SET x='))
+  assert.deepEqual(placementUpdate.values.slice(2, 6), [40, 57.5, 80.5, 45.25])
+  assert.ok(calls.findIndex(({ sql }) => sql.startsWith('UPDATE roomy_layouts SET revision=revision+1')) <
+    calls.findIndex(({ sql }) => sql.startsWith('UPDATE roomy_layout_items SET x=')))
+  assert.ok(calls.findIndex(({ sql }) => sql.startsWith('UPDATE roomy_layout_items SET x=')) <
+    calls.findIndex(({ sql }) => sql.startsWith('UPDATE roomy_items SET name=')))
+})
+
+test('editing a placed item cannot set dimensions beyond its rotated room bounds', async () => {
+  const ownerId = 'test-owner'
+  const roomId = '5ac095c1-6d15-436b-a764-f62bb4d7537f'
+  const itemId = 'bfa3aca1-45c4-4c93-8fdc-e781059e050a'
+  const calls = []
+  const item = {
+    id: itemId, owner_id: ownerId, room_id: roomId, name: 'Shelf', category: 'Furniture',
+    notes: '', is_storage_unit: true, parent_storage_id: null, width_cm: 108.33,
+    depth_cm: 35, photo_path: null, photo_fit: 'cover', photo_position: 'center',
+    photo_position_x: 50, photo_position_y: 50, photo_zoom: 1,
+    created_at: new Date(), updated_at: new Date(),
+  }
+  const client = {
+    async query(sql) {
+      calls.push(sql)
+      if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] }
+      if (sql.startsWith('SELECT id, owner_id, room_id')) return { rows: [{ ...item }] }
+      if (sql.startsWith('SELECT 1 FROM roomy_categories')) return { rows: [{}], rowCount: 1 }
+      if (sql.startsWith('SELECT li.x,li.y')) return { rows: [{
+        x: -36.66, y: 36.67, width: 108.33, depth: 35, rotation: 90,
+        width_cm: 35.01, depth_cm: 108.34,
+      }] }
+      return { rows: [] }
+    },
+    release() {},
+  }
+
+  await assert.rejects(
+    updateItem({ connect: async () => client }, ownerId, itemId, { widthCm: 120, depthCm: 35 }),
+    /extend beyond the room boundaries/,
+  )
+  assert.equal(calls.some((sql) => sql.startsWith('UPDATE roomy_items SET name=')), false)
+})
+
+test('planner reads synchronized placement dimensions after an item form edit', async () => {
+  const ownerId = 'test-owner'
+  const roomId = '5ac095c1-6d15-436b-a764-f62bb4d7537f'
+  let shapesQuery = ''
+  const room = { id: roomId, owner_id: ownerId, name: 'Test', width_cm: 300, depth_cm: 400 }
+  const db = {
+    async query(sql) {
+      if (sql.startsWith('SELECT id, owner_id, name, width_cm')) return { rows: [room] }
+      if (sql.startsWith('SELECT revision,updated_at FROM roomy_layouts')) {
+        return { rows: [{ revision: 2, updated_at: new Date('2026-10-09T00:00:00.000Z') }] }
+      }
+      if (sql.startsWith('SELECT item_id,x,y,width,depth,rotation,color FROM roomy_layout_items')) {
+        shapesQuery = sql
+        return { rows: [{ item_id: 'bfa3aca1-45c4-4c93-8fdc-e781059e050a',
+          x: 40, y: 57.5, width: 80.5, depth: 45.25, rotation: 90, color: '#f97316' }] }
+      }
+      return { rows: [] }
+    },
+  }
+
+  const layout = await getLayout(db, ownerId, roomId)
+
+  assert.equal(layout.items[0].width, 80.5)
+  assert.equal(layout.items[0].depth, 45.25)
+  assert.equal(layout.items[0].x, 40)
+  assert.equal(layout.items[0].y, 57.5)
+  assert.match(shapesQuery, /FROM roomy_layout_items/)
 })

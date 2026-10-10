@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-export default function ThemeToggleButton({ isDarkMode, onToggle }) {
+export default function ThemeToggleButton({ isDarkMode, onToggle, isCompact = false }) {
   const [sway, setSway] = useState(0)
   const [isPressed, setIsPressed] = useState(false)
   const [pullProgressValue, setPullProgress] = useState(0)
@@ -124,7 +124,12 @@ export default function ThemeToggleButton({ isDarkMode, onToggle }) {
   ].join(' ')
 
   return (
-    <div className="pointer-events-none fixed right-20 top-0 z-[90] flex w-14 flex-col items-center">
+    <div
+      data-theme-hanger
+      data-theme-pulling={isPressed || pullProgressValue > 0.01 ? 'true' : 'false'}
+      aria-hidden={isCompact ? 'true' : undefined}
+      className={`pointer-events-none fixed right-[max(5rem,calc(env(safe-area-inset-right)+4rem))] top-0 z-[90] flex w-14 flex-col items-center ${isCompact ? 'invisible' : ''}`}
+    >
       <svg
         aria-hidden="true"
         viewBox={`0 0 56 ${chainHeight}`}
@@ -161,6 +166,7 @@ export default function ThemeToggleButton({ isDarkMode, onToggle }) {
         title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         onClick={handleSwitchClick}
         data-theme-toggle="true"
+        tabIndex={isCompact ? -1 : 0}
         style={{
           transform: `translateX(${pullOffset.x + sway * 0.8}px) rotate(${sway * 0.35}deg)`,
         }}

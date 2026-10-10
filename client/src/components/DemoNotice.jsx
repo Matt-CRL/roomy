@@ -11,7 +11,7 @@ export default function DemoNotice() {
   if (!USING_MOCK_API) return null
 
   return (
-    <div className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-center text-xs text-amber-950" role="status">
+    <div data-demo-notice className="border-b border-amber-300 bg-amber-50 px-6 py-2 text-center text-xs text-amber-950" role="status">
       <strong>Demo mode.</strong> Changes stay in this browser and are not saved
       to your account or PostgreSQL. See the README for real-mode setup.
     </div>

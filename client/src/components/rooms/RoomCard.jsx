@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import openDoorIcon from '../../assets/open-door.png'
+import { getViewportMenuPosition } from '../../utils/viewportMenu'
 
 function getContrastingTextColor(color) {
   const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(color || '')
@@ -29,7 +30,11 @@ export default function RoomCard({
   onDelete,
 }) {
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState(null)
+  const entryPointerType = useRef(null)
   const optionsRef = useRef(null)
+  const triggerRef = useRef(null)
+  const menuRef = useRef(null)
   const width = Number(layout?.widthCm ?? room.widthCm)
   const depth = Number(layout?.depthCm ?? room.depthCm)
   const widthCm = Number.isFinite(width) && width > 0 ? width : 300
@@ -51,34 +56,65 @@ export default function RoomCard({
       }
     }
 
+    function handleEscape(event) {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      setIsOptionsOpen(false)
+      triggerRef.current?.focus()
+    }
+
     document.addEventListener('pointerdown', handleOutsideClick)
-    return () => document.removeEventListener('pointerdown', handleOutsideClick)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick)
+      document.removeEventListener('keydown', handleEscape)
+    }
   }, [isOptionsOpen])
 
-  function handleKeyDown(event) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onEnter?.(room)
-    }
-  }
+  useLayoutEffect(() => {
+    if (!isOptionsOpen) return undefined
 
-  function handlePointerUp(event) {
-    if (event.pointerType === 'touch' && !event.target.closest('button')) {
-      onEnter?.(room)
+    function updateMenuPosition() {
+      const trigger = triggerRef.current?.getBoundingClientRect()
+      const menu = menuRef.current?.getBoundingClientRect()
+      if (!trigger || !menu) return
+      setMenuPosition(getViewportMenuPosition({
+        trigger,
+        menu,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      }))
     }
-  }
+
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [isOptionsOpen])
 
   return (
     <article
-      role="button"
-      tabIndex={0}
-      aria-label={`Double-click on desktop or tap on mobile to enter ${room.name}. ${placedItems.length} items saved in planner.`}
-      onDoubleClick={() => onEnter?.(room)}
-      onPointerUp={handlePointerUp}
-      onKeyDown={handleKeyDown}
-      title={`Double-click on desktop or tap on mobile to enter ${room.name}`}
       className="group relative select-none touch-manipulation rounded-sm border border-slate-300 bg-white transition-all hover:border-orange-500 hover:shadow-md focus-within:border-orange-500 focus-within:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
     >
+      <button
+        type="button"
+        aria-label={`Open ${room.name} inventory`}
+        onPointerDown={(event) => { entryPointerType.current = event.pointerType }}
+        onPointerCancel={() => { entryPointerType.current = null }}
+        onClick={(event) => {
+          if (entryPointerType.current === 'touch' || entryPointerType.current === 'pen' || event.detail === 0) {
+            onEnter?.(room)
+          }
+          entryPointerType.current = null
+        }}
+        onDoubleClick={(event) => {
+          if (event.detail >= 2) onEnter?.(room)
+        }}
+        className="absolute inset-0 z-[1] rounded-sm bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500"
+      />
       <div className="room-preview-grid relative h-48 overflow-hidden rounded-t-sm bg-slate-50">
         <div className="absolute inset-x-3 top-2 z-[1] flex items-center justify-between gap-2 text-[10px] font-medium text-slate-500">
           <span className="uppercase tracking-wide">Room preview</span>
@@ -181,7 +217,7 @@ export default function RoomCard({
           </p>
         </div>
 
-        <div ref={optionsRef} className="relative -mr-2">
+        <div ref={optionsRef} className="relative z-20 -mr-2">
           <button
             type="button"
             aria-label={`More options for ${room.name}`}
@@ -189,10 +225,14 @@ export default function RoomCard({
             aria-expanded={isOptionsOpen}
             onClick={(event) => {
               event.stopPropagation()
-              setIsOptionsOpen((open) => !open)
+              setIsOptionsOpen((open) => {
+                if (open) setMenuPosition(null)
+                return !open
+              })
             }}
             onDoubleClick={(event) => event.stopPropagation()}
-            className="inline-flex h-8 min-w-14 items-center justify-center rounded-full text-xl leading-none text-slate-600 transition-colors hover:bg-slate-200 hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+            ref={triggerRef}
+            className="inline-flex h-11 min-w-11 items-center justify-center rounded-full text-xl leading-none text-slate-600 transition-colors hover:bg-slate-200 hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
           >
             <span aria-hidden="true">⋯</span>
           </button>
@@ -201,7 +241,9 @@ export default function RoomCard({
             <div
               role="menu"
               aria-label={`${room.name} options`}
-              className="night-dropdown-menu absolute bottom-10 left-1/2 z-20 w-36 -translate-x-1/2 rounded-md border border-slate-300 bg-white p-1.5 shadow-lg"
+              ref={menuRef}
+              style={menuPosition || { visibility: 'hidden' }}
+              className="night-dropdown-menu fixed z-[60] w-36 rounded-md border border-slate-300 bg-white p-1.5 shadow-lg"
               onDoubleClick={(event) => event.stopPropagation()}
             >
               <button

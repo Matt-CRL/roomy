@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../components/common/Button'
 import AppNavbar from '../components/layout/AppNavbar'
+import LocationTrail from '../components/layout/LocationTrail'
 import { categoryGroups } from '../data/categoryOptions'
 import { getPhotoAdjustment, getPhotoImageStyle } from '../data/photoDisplay'
 import ImageCursorTrail from '../components/effects/ImageCursorTrail'
@@ -137,6 +138,8 @@ export default function ItemFormPage({
   onChangePassword,
   onDeleteAccount,
   isDarkMode = false,
+  onToggleTheme,
+  compactTheme = false,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
   const isEditMode = Boolean(item)
@@ -168,10 +171,18 @@ export default function ItemFormPage({
   const [photoLoadError, setPhotoLoadError] = useState('')
   const [photoLoadRetry, setPhotoLoadRetry] = useState(0)
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false)
+  const [isPhotoSectionOpen, setIsPhotoSectionOpen] = useState(() =>
+    typeof window === 'undefined' || window.innerWidth >= 1024,
+  )
   const photoInputRef = useRef(null)
   const photoDragRef = useRef(null)
   const photoLoaderRef = useRef(onLoadPhoto)
   photoLoaderRef.current = onLoadPhoto
+  const location = [
+    { label: 'Rooms', onClick: onBackToRooms },
+    { label: roomName, onClick: onBackToInventory },
+    { label: form.name || 'Item name' },
+  ]
 
   useEffect(() => {
     let active = true
@@ -329,21 +340,20 @@ export default function ItemFormPage({
       : 'Unstored'
 
   return (
-    <main className={`isolate min-h-screen bg-slate-50 p-6 ${isEditMode ? 'pb-32' : ''}`}>
+    <main className={`isolate min-h-screen bg-slate-50 px-3 py-4 sm:p-6 ${isEditMode ? 'pb-32' : ''}`}>
       {!isDarkMode && <ImageCursorTrail />}
-      <div className="mx-auto max-w-screen-2xl">
+      <div className="mx-auto max-w-[1700px]">
         <AppNavbar
           onSignOut={onSignOut}
           displayName={displayName}
-          location={[
-            { label: 'Rooms', onClick: onBackToRooms },
-            { label: roomName, onClick: onBackToInventory },
-            { label: form.name || 'Item name' },
-          ]}
+          location={location}
           email={email}
           onUpdateDisplayName={onUpdateDisplayName}
           onChangePassword={onChangePassword}
           onDeleteAccount={onDeleteAccount}
+          isDarkMode={isDarkMode}
+          onToggleTheme={onToggleTheme}
+          compactTheme={compactTheme}
         />
 
         <header className="flex flex-col gap-5 pt-3 lg:flex-row lg:items-start lg:justify-between">
@@ -359,26 +369,42 @@ export default function ItemFormPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 self-end lg:self-auto">
-            <Button variant="secondary" type="button" onClick={onCancel}>
-              Cancel
-            </Button>
+          <div className="flex w-full min-w-0 items-center justify-end gap-2 lg:w-auto">
+            <LocationTrail location={location} className="mr-auto min-w-0 flex-1 md:hidden" />
+            <div className="flex shrink-0 gap-2">
+              <Button variant="secondary" type="button" onClick={onCancel}>
+                Cancel
+              </Button>
 
-            <Button variant="primary" type="submit" form="item-form" disabled={busy}>
-              {busyAction === 'save' ? 'Saving…' : 'Save'}
-            </Button>
+              <Button variant="primary" type="submit" form="item-form" disabled={busy}>
+                {busyAction === 'save' ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
         </header>
 
         {actionError && <p role="alert" className="mt-4 border border-red-300 bg-white p-3 text-sm text-red-700">{actionError}</p>}
 
-        <div className="mt-8 grid gap-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.9fr)]">
+        <div className="mt-5 grid gap-5 sm:mt-8 sm:gap-7 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.9fr)]">
           <form
             id="item-form"
             onSubmit={handleSubmit}
-            className="night-form-surface border border-slate-300 bg-white p-5"
+            className="night-form-surface min-w-0 border border-slate-300 bg-white p-4 sm:p-5"
           >
-            <div className="grid gap-5 lg:grid-cols-2">
+            <button
+              type="button"
+              aria-expanded={isPhotoSectionOpen}
+              aria-controls="item-photo-controls"
+              onClick={() => setIsPhotoSectionOpen((open) => !open)}
+              className="night-secondary-surface mb-4 flex min-h-11 w-full items-center justify-between border border-slate-300 bg-slate-50 px-3 text-left text-xs font-semibold text-slate-900 lg:hidden"
+            >
+              <span>Optional photo and preview</span>
+              <span aria-hidden="true">{isPhotoSectionOpen ? 'Hide −' : 'Show +'}</span>
+            </button>
+            <div
+              id="item-photo-controls"
+              className={`grid gap-5 lg:grid-cols-2 ${isPhotoSectionOpen ? '' : 'hidden lg:grid'}`}
+            >
               <div className="flex flex-col text-xs text-slate-900">
                 <h2 className="font-semibold">Item photo</h2>
                 <p className="mt-1 text-[10px] font-normal text-slate-500">
@@ -391,7 +417,7 @@ export default function ItemFormPage({
                   type="button"
                   disabled={!allowPhoto}
                   onClick={() => photoInputRef.current?.click()}
-                  className="night-secondary-surface mt-2 flex h-[16rem] w-full flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-900 transition-colors hover:border-orange-400 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
+                  className="night-secondary-surface mt-2 flex h-48 w-full flex-col items-center justify-center border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-900 transition-colors hover:border-orange-400 hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:h-64"
                 >
                   {item?.imageUrl && !photoFile && <img src={item.imageUrl} alt="Current item" className="mb-2 max-h-32 max-w-full object-contain" />}
                   <span className="font-semibold">{photoFile ? photoFile.name : allowPhoto ? item?.hasPhoto ? 'Replace reference photo' : '+ Add optional reference photo' : 'Photos available in real mode'}</span>
@@ -436,7 +462,7 @@ export default function ItemFormPage({
                 Item card preview
               </p>
 
-              <div className="mt-2 h-[16rem] overflow-hidden border border-slate-300 bg-slate-200">
+              <div className="mt-2 h-48 overflow-hidden border border-slate-300 bg-slate-200 sm:h-64">
                 <div
                   className={`relative flex h-40 touch-none items-center justify-center overflow-hidden border-b border-slate-300 bg-slate-200 ${
                     photoPreviewUrl ? isDraggingPhoto ? 'cursor-grabbing' : 'cursor-grab' : ''

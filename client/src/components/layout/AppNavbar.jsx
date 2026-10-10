@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Button from '../common/Button'
+import CompactThemeButton from './CompactThemeButton'
+import LocationTrail from './LocationTrail'
 import lightLogo from '../../assets/light-logo.png'
 import darkLogo from '../../assets/dark-logo.png'
 
@@ -20,13 +22,38 @@ export default function AppNavbar({
   onUpdateDisplayName,
   onChangePassword,
   onDeleteAccount,
+  isDarkMode = false,
+  onToggleTheme,
+  compactTheme = false,
   location = [],
 }) {
   const displayLabel = String(displayName || 'User').trim() || 'User'
   const menuRef = useRef(null)
+  const userButtonRef = useRef(null)
+  const profileMeasureRef = useRef(null)
   const [isOpen, setIsOpen] = useState(false)
+  const [useProfileInitial, setUseProfileInitial] = useState(false)
   const [nameDraft, setNameDraft] = useState(displayLabel)
   const [newPassword, setNewPassword] = useState('')
+
+  useLayoutEffect(() => {
+    const button = userButtonRef.current
+    const measure = profileMeasureRef.current
+    if (!button || !measure) return undefined
+
+    function updateProfileLabel() {
+      const available = Number.parseFloat(window.getComputedStyle(button).maxWidth)
+      const textWidth = measure.getBoundingClientRect().width
+      const shouldUseInitial = Number.isFinite(available) && textWidth + 18 > available
+      setUseProfileInitial((current) => current === shouldUseInitial ? current : shouldUseInitial)
+    }
+
+    const observer = new ResizeObserver(updateProfileLabel)
+    observer.observe(button)
+    observer.observe(measure)
+    updateProfileLabel()
+    return () => observer.disconnect()
+  }, [displayLabel])
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [busyAction, setBusyAction] = useState('')
@@ -135,65 +162,60 @@ export default function AppNavbar({
   return (
     <nav
       aria-label="Main navigation"
-      className="app-navbar-surface relative mx-auto mb-6 flex min-h-16 w-full max-w-none items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm sm:px-5"
+      data-main-navbar
+      className="app-navbar-surface relative mx-auto mb-4 flex min-h-16 w-full max-w-none flex-wrap items-center justify-between gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2 shadow-sm sm:mb-6 sm:gap-3 sm:rounded-2xl sm:px-5"
     >
       <img
         src={lightLogo}
         alt="Roomy"
-        className="app-navbar-logo-light relative z-10 h-8 w-auto max-w-[32vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
+        className="app-navbar-logo-light relative z-10 order-1 h-7 w-auto max-w-[30vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
       />
       <img
         src={darkLogo}
         alt="Roomy"
-        className="app-navbar-logo-dark relative z-10 h-8 w-auto max-w-[32vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
+        className="app-navbar-logo-dark relative z-10 order-1 h-7 w-auto max-w-[30vw] shrink-0 object-contain sm:h-10 sm:max-w-none"
       />
 
       {location.length > 0 && (
-        <div className="relative z-10 mx-1 flex min-w-0 flex-1 items-center justify-center gap-1.5 sm:mx-3 sm:gap-2">
-          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[18px] w-[18px] shrink-0 text-orange-500 sm:h-5 sm:w-5">
-            <path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z" />
-            <circle cx="12" cy="10" r="2.5" />
-          </svg>
-          <nav aria-label="Current location" className="flex min-w-0 items-center gap-1 overflow-hidden text-xs sm:gap-1.5 sm:text-sm">
-            {location.map((part, index) => (
-              <span key={`${part.label}-${index}`} className="inline-flex min-w-0 items-center gap-1 sm:gap-1.5">
-                {index > 0 && <span aria-hidden="true" className="shrink-0 text-slate-400">/</span>}
-                {part.onClick ? (
-                  <button type="button" onClick={part.onClick} className="max-w-[18vw] truncate whitespace-nowrap font-medium text-slate-500 transition-colors hover:text-orange-500 sm:max-w-[180px]">
-                    {part.label}
-                  </button>
-                ) : (
-                  <span aria-current={index === location.length - 1 ? 'page' : undefined} className="max-w-[22vw] truncate whitespace-nowrap font-semibold text-orange-500 sm:max-w-[220px]">
-                    {part.label}
-                  </span>
-                )}
-              </span>
-            ))}
-          </nav>
-        </div>
+        <LocationTrail location={location} className="relative z-10 order-3 hidden min-w-0 pt-1 md:order-2 md:mx-3 md:flex md:flex-1 md:justify-center md:pt-0" />
       )}
 
-      <div ref={menuRef} className="relative z-10 flex min-w-0 items-center gap-1.5 sm:gap-2">
-        {onSignOut && (
+      <div ref={menuRef} data-navbar-actions className="relative z-10 order-2 flex min-w-0 shrink-0 items-center gap-1 sm:gap-2 md:order-3">
+        {onToggleTheme && compactTheme && (
+          <CompactThemeButton
+            isDarkMode={isDarkMode}
+            onToggle={onToggleTheme}
+            className="shrink-0"
+          />
+        )}
+        <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2">
+          {onSignOut && (
+            <button
+              type="button"
+              onClick={onSignOut}
+              aria-label="Sign out"
+              className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center gap-1.5 rounded-md bg-orange-500 px-2 text-xs font-semibold text-white transition-colors hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:min-w-0 sm:px-3"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 sm:hidden"><path d="M10 17l5-5-5-5M15 12H3" /><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6" /></svg>
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          )}
           <button
             type="button"
-            onClick={onSignOut}
-            className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-md bg-orange-500 px-2.5 text-xs font-semibold text-white transition-colors hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:px-3"
+            aria-expanded={isOpen}
+            aria-haspopup="dialog"
+            aria-label={`Open user menu for ${displayLabel}`}
+            title={displayLabel}
+            onClick={openMenu}
+            ref={userButtonRef}
+            className="app-navbar-user-button relative inline-flex min-h-10 min-w-10 max-w-[21vw] items-center justify-center truncate whitespace-nowrap rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:min-w-0 sm:max-w-48 sm:px-3"
           >
-            Sign out
+            <span aria-hidden="true">{useProfileInitial ? Array.from(displayLabel)[0]?.toLocaleUpperCase() : displayLabel}</span>
+            <span ref={profileMeasureRef} aria-hidden="true" className="pointer-events-none absolute -z-10 whitespace-nowrap opacity-0">
+              {displayLabel}
+            </span>
           </button>
-        )}
-        <button
-          type="button"
-          aria-expanded={isOpen}
-          aria-haspopup="dialog"
-          aria-label={`Open user menu for ${displayLabel}`}
-          title={displayLabel}
-          onClick={openMenu}
-          className="app-navbar-user-button inline-flex min-h-9 min-w-0 max-w-[30vw] items-center justify-center truncate whitespace-nowrap rounded-md border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2 sm:max-w-48 sm:px-3"
-        >
-          {displayLabel}
-        </button>
+        </div>
 
         {isOpen && (
           <>
@@ -206,7 +228,7 @@ export default function AppNavbar({
               role="dialog"
               aria-modal="true"
               aria-label="Account settings"
-              className="account-menu-surface fixed left-1/2 top-1/2 z-[80] max-h-[calc(100vh-2rem)] w-[min(30rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border border-slate-300 bg-white p-5 text-slate-900 shadow-2xl"
+              className="account-menu-surface fixed left-1/2 top-1/2 z-[80] max-h-[calc(100dvh-1.5rem)] w-[min(30rem,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto border border-slate-300 bg-white p-4 text-slate-900 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-5"
             >
             <div className="flex items-start justify-between gap-4">
               <div>

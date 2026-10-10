@@ -11,6 +11,8 @@ import { supabase } from './api/supabase'
 import DemoNotice from './components/DemoNotice'
 import { compressImage } from './utils/compressImage'
 import { fromPublicPath, toPublicPath } from './utils/appBasePath'
+import { appPageTitle } from './utils/pageTitle'
+import useThemeControlMode from './hooks/useThemeControlMode'
 
 const ROOMS_STORAGE_KEY = 'roomy:rooms'
 const ITEMS_STORAGE_KEY = 'roomy:items'
@@ -437,7 +439,7 @@ function LegacyThemeToggleButton({ isDarkMode, onToggle }) {
   )
 }
 
-function AppShell({ children, isDarkMode, onToggleTheme, errorMessage, isLoading, confirmation, onConfirmationChoice, onSignOut, hideThemeToggle = false }) {
+function AppShell({ children, isDarkMode, onToggleTheme, compactTheme, errorMessage, isLoading, confirmation, onConfirmationChoice, onSignOut, hideThemeToggle = false }) {
   const shellRef = useRef(null)
   const isMoveAction = confirmation?.action === 'Move'
   const keepContentsLabel = isMoveAction ? 'Leave unstored' : 'Keep items'
@@ -517,7 +519,7 @@ function AppShell({ children, isDarkMode, onToggleTheme, errorMessage, isLoading
           </section>
         </div>
       )}
-      {!hideThemeToggle && <ThemeToggleButton isDarkMode={isDarkMode} onToggle={onToggleTheme} />}
+      {!hideThemeToggle && <ThemeToggleButton isDarkMode={isDarkMode} onToggle={onToggleTheme} isCompact={compactTheme} />}
     </div>
   )
 }
@@ -553,6 +555,14 @@ export default function App() {
   const photoRequests = useRef(new Map())
   const inventoryLists = useRef(new Map())
   const photoCacheGeneration = useRef(0)
+  const { compact: compactTheme } = useThemeControlMode(
+    `${currentPage}:${Boolean(session)}:${isDemoSignedOut}:${isPasswordRecovery}`,
+  )
+
+  useEffect(() => {
+    if (isDemoSignedOut || currentPage === 'login' || isPasswordRecovery || (!api.USING_MOCK_API && !session)) return
+    document.title = appPageTitle(currentPage, routeItemId)
+  }, [currentPage, isDemoSignedOut, isPasswordRecovery, routeItemId, session])
 
   function inventoryKey(roomId, filters = roomFilters) {
     return JSON.stringify([session?.user?.id ?? 'demo', roomId, filters.q, filters.type, filters.categories])
@@ -653,7 +663,7 @@ export default function App() {
   }, [confirmation])
 
   const shellProps = {
-    isDarkMode, onToggleTheme: handleToggleTheme,
+    isDarkMode, onToggleTheme: handleToggleTheme, compactTheme,
     errorMessage, isLoading, confirmation,
     onConfirmationChoice: (choice) => { confirmation?.resolve(choice); setConfirmation(null) },
     onSignOut: () => {
@@ -1278,6 +1288,8 @@ export default function App() {
           onSignOut={shellProps.onSignOut}
           displayName={displayName}
           isDarkMode={isDarkMode}
+          onToggleTheme={handleToggleTheme}
+          compactTheme={compactTheme}
           isLoading={isRoomsLoading}
           {...accountProps}
           onEnterRoom={(room) => {
@@ -1305,6 +1317,8 @@ export default function App() {
           onSignOut={shellProps.onSignOut}
           displayName={displayName}
           isDarkMode={isDarkMode}
+          onToggleTheme={handleToggleTheme}
+          compactTheme={compactTheme}
           {...accountProps}
           onDeletePhoto={async (itemId) => run(async () => {
             await api.deletePhoto(itemId)
@@ -1334,6 +1348,8 @@ export default function App() {
         onSignOut={shellProps.onSignOut}
         displayName={displayName}
         isDarkMode={isDarkMode}
+        onToggleTheme={handleToggleTheme}
+        compactTheme={compactTheme}
         {...accountProps}
         onGetContents={api.USING_MOCK_API ? undefined : getContentsWithPhotos}
         onGetAddableItems={getAllRoomItems}

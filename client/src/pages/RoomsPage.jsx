@@ -55,6 +55,8 @@ export default function RoomsPage({
   onChangePassword,
   onDeleteAccount,
   isDarkMode = false,
+  onToggleTheme,
+  compactTheme = false,
   isLoading = false,
 }) {
   const [isAddRoomOpen, setIsAddRoomOpen] = useState(false)
@@ -561,9 +563,9 @@ export default function RoomsPage({
   }
 
   return (
-    <main className="isolate min-h-screen bg-slate-50 p-6">
+    <main className="isolate min-h-screen bg-slate-50 px-3 py-4 sm:p-6">
       {!isDarkMode && <ImageCursorTrail />}
-      <div className="mx-auto max-w-screen-2xl">
+      <div className="mx-auto max-w-[1700px]">
         <AppNavbar
           onSignOut={onSignOut}
           displayName={displayName}
@@ -571,6 +573,9 @@ export default function RoomsPage({
           onUpdateDisplayName={onUpdateDisplayName}
           onChangePassword={onChangePassword}
           onDeleteAccount={onDeleteAccount}
+          isDarkMode={isDarkMode}
+          onToggleTheme={onToggleTheme}
+          compactTheme={compactTheme}
         />
 
         <header className="mb-8 pt-3">
@@ -600,7 +605,7 @@ export default function RoomsPage({
           </div>
 
           {isLoading ? (
-            <div className="grid gap-4 md:grid-cols-3" aria-busy="true" aria-label="Loading rooms">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading rooms">
               {[0, 1, 2].map((skeleton) => (
                 <div key={skeleton} className="animate-pulse overflow-hidden border border-slate-300 bg-white">
                   <div className="h-48 bg-slate-200" />
@@ -629,8 +634,10 @@ export default function RoomsPage({
               </Button>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-3">
-              <AddRoomCard onClick={openAddRoom} />
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="hidden h-full sm:block">
+                <AddRoomCard onClick={openAddRoom} />
+              </div>
 
               {rooms.map((room) => (
                 <RoomCard
@@ -648,7 +655,7 @@ export default function RoomsPage({
 
         {isAddRoomOpen && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/40 px-2 py-3 sm:p-6"
             role="presentation"
             onMouseDown={closeAddRoom}
           >
@@ -656,7 +663,7 @@ export default function RoomsPage({
               role="dialog"
               aria-modal="true"
               aria-labelledby="add-room-title"
-              className="night-form-surface w-full max-w-4xl border border-slate-300 bg-white p-7 shadow-xl sm:p-8"
+              className="night-form-surface max-h-[calc(100dvh-1.5rem)] w-full max-w-4xl overflow-y-auto border border-slate-300 bg-white p-4 shadow-xl sm:max-h-[calc(100dvh-3rem)] sm:p-8"
               onPointerDown={(event) => {
                 if (!event.target.closest('[data-room-wall]')) {
                   setSelectedWall(null)
@@ -669,7 +676,7 @@ export default function RoomsPage({
               onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="grid gap-8 md:grid-cols-[270px_minmax(0,1fr)] md:items-stretch">
-                <div>
+                <div className="order-2 md:order-none">
                   <h2 id="add-room-title" className="text-xl font-semibold text-slate-900">
                     Add room
                   </h2>
@@ -757,7 +764,7 @@ export default function RoomsPage({
                 </div>
 
                 <aside
-                  className="room-preview-grid relative flex min-h-[540px] flex-col overflow-hidden border border-slate-200 bg-slate-50 p-5"
+                  className="room-preview-grid relative order-1 flex h-[min(35dvh,320px)] min-h-[220px] max-h-[320px] flex-col overflow-hidden border border-slate-200 bg-slate-50 p-3 md:order-none md:h-auto md:min-h-[540px] md:max-h-none md:p-5"
                   aria-label="Room preview"
                   data-room-preview-panel
                   style={{
@@ -1040,7 +1047,7 @@ export default function RoomsPage({
 
         {roomToRename && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 sm:p-6"
             role="presentation"
             onMouseDown={closeRenameRoom}
           >
@@ -1102,7 +1109,7 @@ export default function RoomsPage({
 
         {roomToDelete && (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-6"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-3 sm:p-6"
             role="presentation"
             onMouseDown={() => setRoomToDelete(null)}
           >

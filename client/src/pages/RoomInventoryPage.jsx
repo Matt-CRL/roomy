@@ -7,6 +7,7 @@ import InventoryTypeIcon from '../components/items/InventoryTypeIcon'
 import { getPhotoImageStyle } from '../data/photoDisplay'
 import TiltEffect from '../components/common/TiltEffect'
 import AppNavbar from '../components/layout/AppNavbar'
+import LocationTrail from '../components/layout/LocationTrail'
 import emptyRoomIcon from '../assets/empty-room.png'
 import ImageCursorTrail from '../components/effects/ImageCursorTrail'
 
@@ -143,9 +144,15 @@ export default function RoomInventoryPage({
   onChangePassword,
   onDeleteAccount,
   isDarkMode = false,
+  onToggleTheme,
+  compactTheme = false,
   isLoading = false,
 }) {
   const roomName = room?.name ?? 'Bedroom 1'
+  const location = [
+    { label: 'Rooms', onClick: onBackToRooms },
+    { label: roomName },
+  ]
   const [viewMode, setViewMode] = useState('grid')
   const [searchQuery, setSearchQuery] = useState('')
   const [filters, setFilters] = useState({ type: 'all', categories: [] })
@@ -419,6 +426,15 @@ export default function RoomInventoryPage({
   function toggleInventorySidebar() {
     window.clearTimeout(inventoryCloseTimer.current)
 
+    if (window.matchMedia('(max-width: 1023px)').matches) {
+      setIsInventoryClosing(false)
+      setIsInventoryRecentering(false)
+      setIsInventoryAtTop(true)
+      setIsInventoryAtBottom(false)
+      setIsInventoryOpen((isOpen) => !isOpen)
+      return
+    }
+
     if (isInventoryOpen) {
       setIsInventoryClosing(true)
       setIsInventoryRecentering(false)
@@ -450,20 +466,20 @@ export default function RoomInventoryPage({
   }
 
   return (
-    <main className="isolate min-h-screen bg-slate-50 p-6">
+    <main className="isolate min-h-screen bg-slate-50 px-3 py-4 sm:p-6">
       {!isDarkMode && <ImageCursorTrail />}
-      <div className="mx-auto max-w-screen-2xl">
+      <div className="mx-auto max-w-[1700px]">
         <AppNavbar
           onSignOut={onSignOut}
           displayName={displayName}
-          location={[
-            { label: 'Rooms', onClick: onBackToRooms },
-            { label: roomName },
-          ]}
+          location={location}
           email={email}
           onUpdateDisplayName={onUpdateDisplayName}
           onChangePassword={onChangePassword}
           onDeleteAccount={onDeleteAccount}
+          isDarkMode={isDarkMode}
+          onToggleTheme={onToggleTheme}
+          compactTheme={compactTheme}
         />
 
         <header className="flex flex-col gap-5 pt-3 lg:flex-row lg:items-start lg:justify-between">
@@ -482,28 +498,27 @@ export default function RoomInventoryPage({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 self-end lg:self-auto">
-            <Button variant="secondary" onClick={handlePlanner}>
-              Planner
-            </Button>
+          <div className="flex w-full min-w-0 items-center justify-between gap-2 lg:w-auto lg:justify-end">
+            <LocationTrail location={location} className="min-w-0 flex-1 md:hidden" />
+            <div className="ml-auto flex shrink-0 gap-2">
+              <Button variant="secondary" onClick={handlePlanner}>
+                Planner
+              </Button>
 
-            <Button variant="primary" onClick={handleAddItem}>
-              + Add item
-            </Button>
+              <Button variant="primary" onClick={handleAddItem}>
+                + Add item
+              </Button>
+            </div>
           </div>
         </header>
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[190px_minmax(0,1fr)]">
-          <InventoryFilters value={filters} onChange={setFilters} />
-
-          <section aria-labelledby="inventory-heading">
+        <section aria-labelledby="inventory-heading" className="mt-5 sm:mt-8">
             <h2 id="inventory-heading" className="sr-only">
-              Bedroom inventory items
+              {roomName} inventory items
             </h2>
 
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex min-w-0 flex-1 gap-2">
-                <div className="relative min-w-0 flex-1">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 lg:grid-cols-[minmax(12rem,1fr)_auto_auto]">
+                <div className="relative col-span-2 min-w-0 lg:col-span-1">
                   <svg
                     aria-hidden="true"
                     viewBox="0 0 24 24"
@@ -527,16 +542,23 @@ export default function RoomInventoryPage({
                     className="min-h-11 w-full border border-slate-300 bg-white pl-10 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
                   />
                 </div>
-              </div>
 
-              <div className="night-view-toggle flex self-end border border-slate-300 text-xs font-medium xl:self-auto">
+                <InventoryFilters value={filters} onChange={setFilters} />
+
+              <div className="night-view-toggle relative isolate grid h-11 w-fit grid-cols-2 overflow-hidden border border-slate-300 bg-white text-xs font-medium">
+                <span
+                  aria-hidden="true"
+                  className={`view-toggle-slider pointer-events-none absolute inset-y-0 left-0 w-1/2 ${
+                    viewMode === 'list' ? 'view-toggle-slider-list' : ''
+                  }`}
+                />
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`min-h-11 px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-inset ${
+                  className={`relative z-10 flex min-h-0 items-center justify-center px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-inset ${
                     viewMode === 'grid'
-                      ? 'view-toggle-active bg-slate-900 text-white'
-                      : 'view-toggle-inactive bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'view-toggle-active bg-transparent text-white'
+                      : 'view-toggle-inactive bg-transparent text-slate-700 hover:bg-slate-50'
                   }`}
                   aria-pressed={viewMode === 'grid'}
                 >
@@ -546,10 +568,10 @@ export default function RoomInventoryPage({
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`min-h-11 px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-inset ${
+                  className={`relative z-10 flex min-h-0 items-center justify-center px-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-inset ${
                     viewMode === 'list'
-                      ? 'view-toggle-active bg-slate-900 text-white'
-                      : 'view-toggle-inactive bg-white text-slate-700 hover:bg-slate-50'
+                      ? 'view-toggle-active bg-transparent text-white'
+                      : 'view-toggle-inactive bg-transparent text-slate-700 hover:bg-slate-50'
                   }`}
                   aria-pressed={viewMode === 'list'}
                 >
@@ -587,10 +609,12 @@ export default function RoomInventoryPage({
                   }
                 >
                   {visibleItems.length > 0 && (
-                    <AddItemCard
-                      onClick={handleAddItem}
-                      compact={viewMode === 'list'}
-                    />
+                    <div className="hidden h-full sm:block">
+                      <AddItemCard
+                        onClick={handleAddItem}
+                        compact={viewMode === 'list'}
+                      />
+                    </div>
                   )}
 
                   {visibleItems.map((item) => (
@@ -623,23 +647,24 @@ export default function RoomInventoryPage({
               </>
             )}
           </section>
-        </div>
       </div>
 
       {focusedItem && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/50 p-6 backdrop-blur-sm"
+          className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
           role="presentation"
           onMouseDown={() => setFocusedItem(null)}
         >
           <div
-            className={`flex max-h-[calc(100vh-3rem)] w-full flex-col items-center gap-4 ${isInventoryOpen ? 'overflow-hidden' : 'overflow-visible'} lg:flex-row lg:items-center lg:gap-5 ${
+            className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col items-center gap-4 overflow-y-auto overflow-x-hidden sm:max-h-[calc(100dvh-3rem)] lg:overflow-hidden lg:flex-row lg:items-center lg:gap-5 ${
               isInventoryOpen ? 'max-w-5xl' : 'max-w-3xl'
             }`}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            <div className="inventory-mobile-viewport w-full">
+              <div className="inventory-mobile-track">
             <div
-              className={`inventory-main-shell w-full lg:w-[48rem] lg:flex-none ${
+              className={`inventory-mobile-page inventory-main-shell w-full shrink-0 lg:w-[48rem] lg:flex-none ${
                 isInventoryRecentering ? 'inventory-main-recentering' : ''
               }`}
             >
@@ -647,7 +672,7 @@ export default function RoomInventoryPage({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="item-focus-title"
-                className="item-focus-dialog w-full max-w-3xl"
+              className="item-focus-dialog max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto sm:max-h-[calc(100dvh-3rem)] lg:max-h-none lg:overflow-visible"
                 style={
                   focusOrigin
                     ? {
@@ -698,7 +723,7 @@ export default function RoomInventoryPage({
 
             <div className="mt-6">
               <div className="grid gap-7 md:grid-cols-[minmax(0,1fr)_minmax(240px,0.8fr)] md:items-stretch">
-                <div className="flex min-h-72 w-full aspect-[4/3] items-center justify-center overflow-hidden border border-slate-300 bg-slate-200 p-4 sm:p-6">
+                <div className="flex min-h-48 w-full aspect-[4/3] items-center justify-center overflow-hidden border border-slate-300 bg-slate-200 p-4 sm:min-h-72 sm:p-6">
                   {focusedItem.imageUrl ? (
                     <img
                       src={focusedItem.imageUrl}
@@ -771,10 +796,14 @@ export default function RoomInventoryPage({
               </section>
             </div>
 
-            {isInventoryOpen && (
+            {focusedItem?.isStorageUnit && (
               <aside
                 aria-label="Inventory sidebar placeholder"
-                className={`inventory-sidebar h-[28rem] w-full shrink-0 snap-y snap-mandatory scroll-smooth overflow-y-auto overscroll-contain p-3 lg:h-[40rem] lg:w-56 ${
+                className={`inventory-mobile-page inventory-sidebar inventory-sidebar-mobile-page mt-3 h-auto w-full shrink-0 overflow-visible p-0 lg:mt-0 lg:h-[40rem] lg:w-56 lg:snap-y lg:snap-mandatory lg:scroll-smooth lg:overflow-y-auto lg:overscroll-contain lg:p-3 ${
+                  isInventoryOpen || isInventoryClosing || isInventoryRecentering
+                    ? 'block'
+                    : 'hidden'
+                } ${
                   isInventoryAtTop ? 'inventory-sidebar-at-top' : ''
                 } ${
                   isInventoryAtBottom ? 'inventory-sidebar-at-bottom' : ''
@@ -783,9 +812,9 @@ export default function RoomInventoryPage({
                 }`}
                 onScroll={handleInventoryScroll}
               >
-                <div className={containedItems.length < 5
+                <div className={`inventory-sidebar-content roomy-dropdown-scrollbar ${containedItems.length < 5
                   ? 'flex min-h-full flex-col justify-center gap-3'
-                  : 'space-y-3'}>
+                  : 'space-y-3'}`}>
                   {unstoreError && (
                     <p role="alert" className="border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-700">
                       {unstoreError}
@@ -798,7 +827,9 @@ export default function RoomInventoryPage({
                   ) : (
                     <>
                   {(onStoreItem || containedItems.length === 0) && (
-                    <div className="inventory-sidebar-card storage-add-item-card card-tilt-disabled snap-start snap-always overflow-hidden border border-slate-300 bg-white">
+                    <div className={`inventory-sidebar-card storage-add-item-card card-tilt-disabled snap-start snap-always overflow-hidden border border-slate-300 bg-white ${
+                      containedItems.length > 0 ? 'mobile-storage-add-hidden' : ''
+                    }`}>
                       <div className={`storage-add-item-header px-3 py-3 ${isAddItemPickerOpen ? 'border-b border-slate-200' : ''}`}>
                         {onStoreItem && (
                           <button
@@ -898,6 +929,8 @@ export default function RoomInventoryPage({
                 </div>
               </aside>
             )}
+              </div>
+            </div>
           </div>
         </div>
       )}
