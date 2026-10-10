@@ -218,13 +218,13 @@ export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: s
           )}
           <AuthLogo className="relative z-[1]" />
 
-          <div className="relative z-[1] grid max-w-3xl items-center gap-4 lg:grid-cols-1 xl:grid-cols-[minmax(210px,1.1fr)_minmax(320px,1fr)]">
+          <div className="relative z-[1] grid max-w-3xl items-center gap-3 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] xl:grid-cols-[minmax(210px,1.1fr)_minmax(320px,1fr)] xl:gap-4">
             <img
               src="/roomy-mascot-transparent.png"
               alt="Roomy mascot emerging from a box"
-              className="hidden w-full max-w-sm justify-self-start object-contain lg:order-first lg:block"
+              className="hidden w-full max-w-sm min-w-0 justify-self-start object-contain lg:order-first lg:block"
             />
-            <div>
+            <div className="min-w-0">
               <h1 className="text-4xl font-bold leading-[1.08] tracking-tight text-slate-900 xl:text-5xl">
                 Know what you own—and where it lives.
               </h1>
@@ -264,18 +264,23 @@ export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: s
                 <span className="hidden lg:inline">{formDescription}</span>
               </p>
 
-              {!isPasswordResetRequest && !isUpdatingPassword && !passwordUpdated && <div className="mt-8 grid grid-cols-2 overflow-hidden rounded-sm border border-slate-300 lg:mt-7 lg:rounded-none lg:border-x-0 lg:border-t-0">
+              {!isPasswordResetRequest && !isUpdatingPassword && !passwordUpdated && <div role="tablist" aria-label="Account access" className="auth-mode-switch relative isolate mt-8 grid grid-cols-2 overflow-hidden lg:mt-7">
+                <span aria-hidden="true" className={`auth-mode-indicator ${isSignIn ? '' : 'auth-mode-indicator-signup'}`} />
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={isSignIn}
                   onClick={() => changeMode('sign-in')}
-                  className={`min-h-12 border-b-2 px-3 text-sm font-semibold transition-colors ${isSignIn ? (isDarkMode ? 'border-orange-500 bg-[#24223a] text-orange-500 lg:bg-transparent' : 'border-orange-500 bg-orange-500 text-white lg:bg-transparent lg:text-orange-500') : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
+                  className={`auth-mode-tab min-h-12 px-3 text-sm font-semibold ${isSignIn ? 'auth-mode-tab-active' : ''}`}
                 >
                   Log in
                 </button>
                 <button
                   type="button"
+                  role="tab"
+                  aria-selected={!isSignIn}
                   onClick={() => changeMode('sign-up')}
-                  className={`min-h-12 border-b-2 px-3 text-sm font-semibold transition-colors ${!isSignIn ? (isDarkMode ? 'border-orange-500 bg-[#24223a] text-orange-500 lg:bg-transparent' : 'border-orange-500 bg-orange-500 text-white lg:bg-transparent lg:text-orange-500') : 'border-transparent text-slate-500 hover:bg-slate-100'}`}
+                  className={`auth-mode-tab min-h-12 px-3 text-sm font-semibold ${!isSignIn ? 'auth-mode-tab-active' : ''}`}
                 >
                   <span className="lg:hidden">Register</span>
                   <span className="hidden lg:inline">Create account</span>
