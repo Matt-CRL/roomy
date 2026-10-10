@@ -667,6 +667,97 @@
   background-color: #1d1b31;
 }
 
+.auth-mode-switch {
+  height: 3rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.25rem;
+  background-color: #fff;
+}
+
+.auth-mode-indicator {
+  position: absolute;
+  z-index: 0;
+  inset: 0 auto 0 0;
+  width: 50%;
+  background-color: #f97316;
+  transition: transform 220ms ease-in-out;
+}
+
+.auth-mode-indicator-signup {
+  transform: translateX(100%);
+}
+
+.auth-mode-tab {
+  position: relative;
+  z-index: 1;
+  color: #475569;
+  transition: color 180ms ease-in-out;
+}
+
+.auth-mode-tab-active {
+  color: #fff;
+}
+
+.night-mode .auth-mode-switch {
+  border-color: #68627d;
+  background-color: #1d1b31;
+}
+
+.night-mode .auth-mode-tab {
+  color: #d8d3e2;
+}
+
+.night-mode .auth-mode-tab-active {
+  color: #fff;
+}
+
+@media (min-width: 1024px) {
+  .auth-mode-switch {
+    border: 0;
+    border-bottom: 1px solid #cbd5e1;
+    border-radius: 0;
+    background-color: transparent;
+  }
+
+  .auth-mode-indicator {
+    inset: auto auto 0 0;
+    height: 2px;
+  }
+
+  .auth-mode-tab {
+    color: #64748b;
+  }
+
+  .auth-mode-tab-active {
+    color: #ea580c;
+  }
+
+  .auth-mode-tab:not(.auth-mode-tab-active):hover {
+    color: #c2410c;
+  }
+
+  .night-mode .auth-mode-switch {
+    border-bottom-color: #68627d;
+    background-color: transparent;
+  }
+
+  .night-mode .auth-mode-tab {
+    color: #d8d3e2;
+  }
+
+  .night-mode .auth-mode-tab-active,
+  .night-mode .auth-mode-tab:not(.auth-mode-tab-active):hover {
+    color: #fb923c;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-mode-indicator,
+  .auth-mode-tab {
+    transition: none;
+  }
+}
+
 .night-mode .bg-slate-50 {
   background-color: transparent;
 }
