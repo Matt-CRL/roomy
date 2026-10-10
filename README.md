@@ -12,7 +12,7 @@ stored, and organise rooms while rearranging or decorating their space.
 > a complete production audit: backup/recovery, scheduled cleanup, and some
 > hosting-security and accessibility checks still need verification.
 
-**Live site:** [roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/)
+**Live site:** [roomy-space.vercel.app](https://roomy-space.vercel.app/)
 **API:** [roomy-api.vercel.app](https://roomy-api.vercel.app/)
 
 ## Start here
@@ -206,7 +206,7 @@ Roomy is deployed as two Vercel projects connected to this repository:
 
 | Vercel project | Root directory | Build | Output / runtime |
 | --- | --- | --- | --- |
-| Frontend — `roomy` | `client` | `npm run build` | Static Vite output in `dist`; `client/vercel.json` provides SPA route rewrites and browser security headers. Live at [roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/). |
+| Frontend — `roomy` | `client` | `npm run build` | Static Vite output in `dist`; `client/vercel.json` provides SPA route rewrites and browser security headers. Live at [roomy-space.vercel.app](https://roomy-space.vercel.app/). |
 | API — `roomy-api` | `server` | Vercel Express detection | Express app exported by `server/index.js` as a Vercel Function; `server/vercel.json` schedules photo cleanup. Base URL: [roomy-api.vercel.app](https://roomy-api.vercel.app/). |
 
 The API URL is for app requests, not a user-facing webpage; opening it directly
@@ -546,7 +546,7 @@ npm run test:config
 
 These screenshots show the Roomy frontend; their freshness against the latest
 interface still needs review. The live app is available at
-[roomy-tawny.vercel.app](https://roomy-tawny.vercel.app/).
+[roomy-space.vercel.app](https://roomy-space.vercel.app/).
 
 ## Known issues and next steps
 
