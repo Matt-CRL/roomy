@@ -202,6 +202,35 @@ export async function updateItem(pool, ownerId, itemId, changes) {
       }
     }
     await checkParent(db, ownerId, current.room_id, input.parentStorageId)
+    const currentWidth = current.width_cm === null ? null : Number(current.width_cm)
+    const currentDepth = current.depth_cm === null ? null : Number(current.depth_cm)
+    const dimensionsChanged = Number(input.widthCm) !== currentWidth || Number(input.depthCm) !== currentDepth
+    if (dimensionsChanged && input.widthCm !== null && input.depthCm !== null && !input.parentStorageId) {
+      const placement = (await db.query(`SELECT li.x,li.y,li.width,li.depth,li.rotation,
+        r.width_cm,r.depth_cm FROM roomy_layout_items li
+        JOIN roomy_rooms r ON r.owner_id=li.owner_id AND r.id=li.room_id
+        WHERE li.owner_id=$1 AND li.item_id=$2`, [ownerId, itemId])).rows[0]
+      if (placement) {
+        const width = Number(input.widthCm)
+        const depth = Number(input.depthCm)
+        const candidate = {
+          x: Number(placement.x) + (Number(placement.width) - width) / 2,
+          y: Number(placement.y) + (Number(placement.depth) - depth) / 2,
+          width,
+          depth,
+          rotation: Number(placement.rotation),
+        }
+        if (!shapeFitsRoom(candidate, placement.width_cm, placement.depth_cm)) {
+          throw badRequest('Updated item dimensions would extend beyond the room boundaries')
+        }
+        // Make planner tabs holding the old shape revision fail with a conflict
+        // instead of silently writing their stale dimensions over this edit.
+        await db.query('UPDATE roomy_layouts SET revision=revision+1 WHERE owner_id=$1 AND room_id=$2', [ownerId, current.room_id])
+        await db.query(`UPDATE roomy_layout_items SET x=$3,y=$4,width=$5,depth=$6
+          WHERE owner_id=$1 AND room_id=$2 AND item_id=$7`,
+        [ownerId, current.room_id, candidate.x, candidate.y, width, depth, itemId])
+      }
+    }
     if (input.parentStorageId) await db.query('DELETE FROM roomy_layout_items WHERE item_id=$1', [itemId])
     const result = await db.query(`UPDATE roomy_items SET name=$3,category=$4,notes=$5,
       is_storage_unit=$6,parent_storage_id=$7,width_cm=$8,depth_cm=$9,photo_fit=$10,photo_position=$11,
@@ -300,13 +329,13 @@ export async function saveLayout(pool, ownerId, roomId, validate) {
   return transaction(pool, async (db) => {
     const room = await ownedRoom(db, ownerId, roomId, true)
     const { revision, widthCm, depthCm, items } = validate(room)
-    await db.query(`INSERT INTO roomy_layouts(room_id,owner_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, [roomId, ownerId])
-    const current = (await db.query('SELECT revision FROM roomy_layouts WHERE room_id=$1 AND owner_id=$2 FOR UPDATE', [roomId, ownerId])).rows[0]
-    if (current.revision !== revision) throw conflict('This layout changed elsewhere. Reload before saving.')
     if (items.length) {
       const result = await db.query('SELECT id,parent_storage_id FROM roomy_items WHERE owner_id=$1 AND room_id=$2 AND id=ANY($3::uuid[]) FOR UPDATE', [ownerId, roomId, items.map((item) => item.itemId)])
       if (result.rowCount !== items.length || result.rows.some((item) => item.parent_storage_id)) throw badRequest('Only unstored items from this room may be placed')
     }
+    await db.query(`INSERT INTO roomy_layouts(room_id,owner_id) VALUES($1,$2) ON CONFLICT DO NOTHING`, [roomId, ownerId])
+    const current = (await db.query('SELECT revision FROM roomy_layouts WHERE room_id=$1 AND owner_id=$2 FOR UPDATE', [roomId, ownerId])).rows[0]
+    if (current.revision !== revision) throw conflict('This layout changed elsewhere. Reload before saving.')
     await db.query('DELETE FROM roomy_layout_items WHERE owner_id=$1 AND room_id=$2', [ownerId, roomId])
     for (const item of items) {
       await db.query(`INSERT INTO roomy_layout_items(owner_id,room_id,item_id,x,y,width,depth,rotation,color)

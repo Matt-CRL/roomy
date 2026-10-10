@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../api/supabase'
 import { toPublicPath } from '../utils/appBasePath'
+import CompactThemeButton from '../components/layout/CompactThemeButton'
 import ThemeToggleButton from '../components/layout/ThemeToggleButton'
 import ImageCursorTrail from '../components/effects/ImageCursorTrail'
+import { authPageTitle } from '../utils/pageTitle'
+import useThemeControlMode from '../hooks/useThemeControlMode'
 import darkLogo from '../assets/dark-logo.png'
 import lightLogo from '../assets/light-logo.png'
 
@@ -39,6 +42,7 @@ function AuthLogo({ className = '' }) {
 }
 
 export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: savedDarkMode, onToggleTheme, passwordRecovery = false, onPasswordRecoveryComplete }) {
+  const { compact: compactTheme } = useThemeControlMode(`auth:${passwordRecovery}`)
   const authLeftPanelRef = useRef(null)
   const [mode, setMode] = useState(passwordRecovery ? 'update-password' : 'sign-in')
   const [displayName, setDisplayName] = useState('')
@@ -87,6 +91,10 @@ export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: s
       setPasswordUpdated(false)
     }
   }, [passwordRecovery])
+
+  useEffect(() => {
+    document.title = authPageTitle(mode, passwordUpdated)
+  }, [mode, passwordUpdated])
 
   function changeMode(nextMode) {
     setMode(nextMode)
@@ -186,7 +194,14 @@ export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: s
 
   return (
     <main className={`theme-transition isolate min-h-screen text-slate-900 ${isDarkMode ? 'night-mode' : 'bg-slate-50'}`}>
-      <ThemeToggleButton isDarkMode={isDarkMode} onToggle={toggleTheme} />
+      <ThemeToggleButton isDarkMode={isDarkMode} onToggle={toggleTheme} isCompact={compactTheme} />
+      {compactTheme && (
+        <CompactThemeButton
+          isDarkMode={isDarkMode}
+          onToggle={toggleTheme}
+          className="fixed right-[max(0.75rem,env(safe-area-inset-right))] top-[max(0.75rem,env(safe-area-inset-top))] z-[90]"
+        />
+      )}
       <div className="relative z-[1] grid min-h-screen lg:grid-cols-[1.15fr_0.85fr]">
         <section
           ref={authLeftPanelRef}
@@ -234,11 +249,11 @@ export default function AuthPage({ demoMode = false, onDemoSignIn, isDarkMode: s
           </div>
         </section>
 
-        <section className="auth-theme-surface auth-login-panel flex min-h-screen items-start justify-center bg-white px-6 py-10 sm:px-10 lg:items-center lg:px-16 lg:py-12">
+        <section className="auth-theme-surface auth-login-panel flex min-h-[100dvh] items-start justify-center bg-white px-4 py-8 sm:px-10 sm:py-10 lg:items-center lg:px-16 lg:py-12">
           <div className="w-full max-w-md">
             <AuthLogo className="lg:hidden" />
 
-            <div className="mt-12 lg:mt-0">
+            <div className="mt-10 lg:mt-0">
               <p className="text-sm font-semibold tracking-wide text-slate-700 lg:hidden">WELCOME HOME</p>
               <h2 className="mt-7 text-4xl font-bold leading-tight tracking-tight text-slate-900 lg:mt-0 lg:text-2xl">
                 <span className="lg:hidden">{isSignIn || isSignUp ? 'Know what you own—and where it lives.' : formHeading}</span>

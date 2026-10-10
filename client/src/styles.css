@@ -7,14 +7,14 @@
 @layer base {
   html {
     --root-scrollbar-track: #f8fafc;
-    --root-scrollbar-thumb: #cbd5e1;
+    --root-scrollbar-thumb: #f97316;
     scrollbar-color: var(--root-scrollbar-thumb) var(--root-scrollbar-track);
     background-color: var(--root-scrollbar-track);
   }
 
   html:has(.night-mode) {
     --root-scrollbar-track: #0c0920;
-    --root-scrollbar-thumb: #68627d;
+    --root-scrollbar-thumb: #f97316;
     background-color: var(--root-scrollbar-track);
   }
 
@@ -178,6 +178,108 @@
   );
 }
 
+.inventory-mobile-viewport {
+  width: 100%;
+  overflow: hidden;
+}
+
+.inventory-mobile-track {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.inventory-mobile-page {
+  flex: initial;
+  width: 100%;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .inventory-mobile-viewport {
+    width: auto;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .inventory-mobile-track {
+    width: auto;
+    max-width: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .inventory-main-shell.inventory-mobile-page {
+    flex: initial;
+    width: 48rem;
+  }
+
+  .inventory-sidebar.inventory-mobile-page {
+    flex: initial;
+    width: 14rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .inventory-sidebar.inventory-mobile-page {
+    animation: inventory-mobile-panel-in 240ms cubic-bezier(0.22, 0.8, 0.24, 1) both;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  .inventory-sidebar-content {
+    display: flex !important;
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
+    justify-content: safe center;
+    gap: 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .inventory-sidebar-content.roomy-dropdown-scrollbar::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .inventory-sidebar-content > .inventory-sidebar-card {
+    flex: 0 0 min(42vw, 9.5rem);
+    width: min(42vw, 9.5rem);
+    height: auto;
+    min-height: 8rem;
+    scroll-snap-align: start;
+  }
+
+  .inventory-sidebar-content > .mobile-storage-add-hidden {
+    display: none !important;
+  }
+}
+
+@keyframes inventory-mobile-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inventory-sidebar.inventory-mobile-page {
+    animation: none;
+  }
+}
+
 .inventory-sidebar::-webkit-scrollbar {
   display: none;
 }
@@ -282,6 +384,10 @@
   transition-timing-function: ease-out;
 }
 
+.planner-mobile-dock-indicator {
+  transition: transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1), opacity 120ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .theme-transition * {
     transition-duration: 0ms !important;
@@ -307,6 +413,10 @@
 
   .inventory-main-recentering {
     animation: none;
+  }
+
+  .planner-mobile-dock-indicator {
+    transition: none;
   }
 
 }
@@ -573,6 +683,18 @@
   background-color: #4a3036;
 }
 
+.inventory-filter-chip {
+  border-color: #fed7aa;
+  background-color: #fff7ed;
+  color: #9a3412;
+}
+
+.night-mode .inventory-filter-chip {
+  border-color: #84524f;
+  background-color: #4a3036;
+  color: #ffb27a;
+}
+
 .night-mode .planner-side-panel {
   background-color: #1d1b31;
 }
@@ -755,23 +877,43 @@
 
 .night-mode .night-view-toggle {
   border-color: #817c95;
-  background-color: #0c0920;
+  background-color: #24223a;
+}
+
+.view-toggle-slider {
+  background-color: #0f172a;
+  transform: translateX(0);
+  transition: transform 200ms ease-in-out;
+}
+
+.view-toggle-slider-list {
+  transform: translateX(100%);
+}
+
+.night-mode .night-view-toggle .view-toggle-slider {
+  background-color: #45415f;
 }
 
 .night-mode .night-view-toggle .view-toggle-active {
-  background-color: #45415f;
+  background-color: transparent;
   color: #d8d3e2;
   font-weight: 700;
 }
 
 .night-mode .night-view-toggle .view-toggle-inactive {
-  background-color: #24223a;
+  background-color: transparent;
   color: #faf6ef;
 }
 
 .night-mode .night-view-toggle .view-toggle-inactive:hover {
-  background-color: #3d3a58;
+  background-color: rgb(255 255 255 / 8%);
   color: #d8d3e2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-toggle-slider {
+    transition: none;
+  }
 }
 
 .night-mode .night-view-toggle .focus-visible\:ring-orange-500:focus-visible {
@@ -931,4 +1073,42 @@
 
 .night-mode .account-delete-cancel:active {
   background-color: #45415f;
+}
+
+@media (min-width: 640px) and (max-height: 500px) {
+  .planner-nav-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .planner-nav-left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .planner-nav-left .planner-back-short {
+    display: inline !important;
+  }
+
+  .planner-nav-left .planner-back-full {
+    display: none !important;
+  }
+
+  .planner-nav-title {
+    grid-column: 2;
+    grid-row: 1;
+    max-width: none;
+    flex-wrap: nowrap;
+    justify-self: stretch;
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  .planner-nav-actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
 }

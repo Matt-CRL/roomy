@@ -76,32 +76,35 @@ export default function RoomsSummary({ rooms, loading = false }) {
       value: totalStorage,
       detail: 'Across all rooms',
       icon: 'storage',
+      compactLabel: 'Storage',
     },
   ]
 
   return (
     <section
       aria-label="Rooms summary"
-      className="mb-10 grid gap-4 md:grid-cols-3"
+      className="mb-6 grid grid-cols-3 gap-2 sm:mb-10 sm:gap-4"
     >
       {summaryItems.map((item) => (
         <article
           key={item.label}
-          className="min-h-24 border border-slate-300 bg-white p-4"
+          className="min-h-[4.5rem] min-w-0 border border-slate-300 bg-white p-2 sm:min-h-24 sm:p-4"
         >
-          <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+          <p className="flex min-w-0 items-center gap-1 text-[8px] font-semibold uppercase leading-tight tracking-wide text-slate-600 sm:gap-1.5 sm:text-[10px]">
             <SummaryIcon type={item.icon} />
-            {item.label}
+            <span aria-hidden="true" className="truncate sm:hidden">{item.compactLabel ?? item.label}</span>
+            <span aria-hidden="true" className="hidden truncate sm:inline">{item.label}</span>
+            <span className="sr-only">{item.label}</span>
           </p>
 
-          <div className="mt-3 flex items-end justify-between gap-4">
-            <p className="text-2xl font-bold leading-none text-slate-900">
+          <div className="mt-2 flex min-w-0 items-end justify-between gap-1 sm:mt-3 sm:gap-4">
+            <p className="text-xl font-bold leading-none text-slate-900 sm:text-2xl">
               {loading ? (
                 <span className="inline-block h-7 w-10 animate-pulse bg-slate-200" aria-label="Loading" />
               ) : item.value}
             </p>
 
-            <p className="text-right text-[10px] text-slate-500">
+            <p className="hidden text-right text-[10px] text-slate-500 sm:block">
               {item.detail}
             </p>
           </div>

@@ -179,7 +179,7 @@ function PlannerObject({
               data-planner-control
               aria-label={`Resize ${item?.name || 'item'} from ${side}`}
               onPointerDown={(event) => onResizePointerDown(event, side)}
-              className={`absolute z-40 h-1.5 w-1.5 shrink-0 aspect-square border border-current bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${handleClass(side)}`}
+              className={`absolute z-40 h-4 w-4 shrink-0 aspect-square border border-current bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-1.5 sm:w-1.5 ${handleClass(side)}`}
             />
           ))}
 
@@ -188,7 +188,7 @@ function PlannerObject({
             data-planner-control
             aria-label={`Rotate ${isPerson ? 'person reference' : item?.name || 'item'}`}
             onPointerDown={onRotatePointerDown}
-            className="absolute left-1/2 top-0 z-40 flex h-8 w-12 -translate-x-1/2 -translate-y-[calc(100%+11px)] items-center justify-center bg-transparent p-0 text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+            className="absolute left-1/2 top-0 z-40 flex h-11 w-14 -translate-x-1/2 -translate-y-[calc(100%+11px)] items-center justify-center bg-transparent p-0 text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-8 sm:w-12"
           >
             <img src="/rotation-arrow.png" alt="" draggable="false" className="h-7 w-10 object-contain" />
           </button>
@@ -350,8 +350,17 @@ export default function PlannerWorkspace({
   const [history, setHistory] = useState([])
   const [future, setFuture] = useState([])
   const [viewportSize, setViewportSize] = useState({ width: 760, height: 600 })
+  const [isSmallPlannerScreen, setIsSmallPlannerScreen] = useState(() => window.matchMedia('(max-width: 1023px)').matches)
+  const [mobilePanel, setMobilePanel] = useState(null)
+  const [plannerNavHeight, setPlannerNavHeight] = useState(() => window.innerWidth < 1024 ? 112 : 80)
+  const [mobileDockHeight, setMobileDockHeight] = useState(() => window.innerWidth < 1024 ? 60 : 0)
+  const [mobilePanelHeight, setMobilePanelHeight] = useState(0)
+  const [demoNoticeHeight, setDemoNoticeHeight] = useState(0)
 
   const viewportRef = useRef(null)
+  const plannerNavRef = useRef(null)
+  const mobileDockRef = useRef(null)
+  const mobilePanelRef = useRef(null)
   const itemGridRef = useRef(null)
   const storageRailRef = useRef(null)
   const roomItemsBounceTimeoutRef = useRef(null)
@@ -368,6 +377,17 @@ export default function PlannerWorkspace({
   const draftRef = useRef({ items: [], widthCm: 0, depthCm: 0, person: null })
   const viewRef = useRef(view)
   const inspectorHistoryRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const notice = document.querySelector('[data-demo-notice]')
+    if (!notice) return undefined
+
+    const updateHeight = () => setDemoNoticeHeight(notice.getBoundingClientRect().height)
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(notice)
+    return () => observer.disconnect()
+  }, [])
 
   const widthCm = Number(roomDimensions.widthCm)
   const depthCm = Number(roomDimensions.depthCm)
@@ -387,6 +407,13 @@ export default function PlannerWorkspace({
     ? null
     : items.find((item) => item.id === selectedId)
   const isSelectedPerson = selectedId === PERSON_ID && Boolean(person)
+  const mobileDockTabs = [
+    ['items', 'Items', true],
+    ['room', 'Room', true],
+    ['selected', 'Selected', Boolean(selectedShape)],
+  ]
+  const activeMobileDockIndex = mobileDockTabs.findIndex(([panel]) => panel === mobilePanel)
+  const mobileDockIndicatorIndex = Math.max(0, activeMobileDockIndex)
 
   const filteredItems = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -404,22 +431,31 @@ export default function PlannerWorkspace({
     ...layout.items,
     ...(person ? [person] : []),
   ]), [layout.items, person])
+  const plannerRootHeight = viewportSize.height + plannerNavHeight + mobileDockHeight + mobilePanelHeight
+  const mobilePanelSpace = Math.max(
+    96,
+    plannerRootHeight - plannerNavHeight - mobileDockHeight - 112,
+  )
+  const mobilePanelHeightLimit = Math.min(plannerRootHeight * 0.38, mobilePanelSpace)
+  const mobilePanelMaxHeightLimit = Math.min(plannerRootHeight * 0.42, mobilePanelSpace)
 
   useEffect(() => () => {
     if (roomItemsBounceTimeoutRef.current) window.clearTimeout(roomItemsBounceTimeoutRef.current)
   }, [])
 
+  const canvasFitInset = isSmallPlannerScreen ? 48 : 96
+  const roomFramePadding = isSmallPlannerScreen ? 48 : 76
   const baseScale = hasDimensions
     ? Math.max(0.002, Math.min(
-      (viewportSize.width - 140) / widthCm,
-      (viewportSize.height - 150) / depthCm,
+      (viewportSize.width - canvasFitInset) / widthCm,
+      (viewportSize.height - canvasFitInset) / depthCm,
       1,
     ))
     : 1
   const floorWidth = Math.max(1, widthCm * baseScale)
   const floorHeight = Math.max(1, depthCm * baseScale)
-  const roomFrameWidth = floorWidth + 76
-  const roomFrameHeight = floorHeight + 76
+  const roomFrameWidth = floorWidth + roomFramePadding
+  const roomFrameHeight = floorHeight + roomFramePadding
 
   useLayoutEffect(() => {
     if (!viewportRef.current) return undefined
@@ -428,7 +464,46 @@ export default function PlannerWorkspace({
     })
     observer.observe(viewportRef.current)
     return () => observer.disconnect()
+  }, [hasDimensions])
+
+  useEffect(() => {
+    const breakpoint = window.matchMedia('(max-width: 1023px)')
+    const updateScreenSize = (event) => {
+      setIsSmallPlannerScreen(event.matches)
+      if (!event.matches) setMobilePanel(null)
+    }
+    updateScreenSize(breakpoint)
+    breakpoint.addEventListener('change', updateScreenSize)
+    return () => breakpoint.removeEventListener('change', updateScreenSize)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!plannerNavRef.current) return undefined
+    const observer = new ResizeObserver(([entry]) => {
+      setPlannerNavHeight(entry.target.getBoundingClientRect().height)
+    })
+    observer.observe(plannerNavRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!isSmallPlannerScreen) {
+      setMobileDockHeight(0)
+      setMobilePanelHeight(0)
+      return undefined
+    }
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const elementHeight = entry.target.getBoundingClientRect().height
+        if (entry.target === mobileDockRef.current) setMobileDockHeight(elementHeight)
+        if (entry.target === mobilePanelRef.current) setMobilePanelHeight(elementHeight)
+      }
+    })
+    if (mobileDockRef.current) observer.observe(mobileDockRef.current)
+    if (mobilePanel && mobilePanelRef.current) observer.observe(mobilePanelRef.current)
+    setMobilePanelHeight(mobilePanel && mobilePanelRef.current ? mobilePanelRef.current.getBoundingClientRect().height : 0)
+    return () => observer.disconnect()
+  }, [isSmallPlannerScreen, mobilePanel, selectedShape?.itemId, selectedShape?.width, selectedShape?.depth, contents.length])
 
   const scheduleAutosave = useCallback((delay = PLANNER_AUTOSAVE_DELAY_MS) => {
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current)
@@ -1165,24 +1240,25 @@ export default function PlannerWorkspace({
   saveActionRef.current = save
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-slate-100">
-      <nav aria-label="Planner navigation" className="absolute inset-x-0 top-0 z-50 w-full border-b border-black bg-black px-3 text-white sm:px-8">
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 py-3 lg:min-h-[80px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-x-8 lg:py-0">
-          <div className="flex min-w-0 items-center gap-2 sm:gap-7 lg:col-start-1 lg:row-start-1">
-            <img src={darkLogo} alt="Roomy" className="h-8 w-auto shrink-0 object-contain sm:h-10" />
-            <span aria-hidden="true" className={`hidden h-8 w-px sm:block ${isDarkMode ? 'bg-slate-700' : 'bg-[#62769a]'}`} />
-            <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-200 transition-colors hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:gap-2 sm:text-sm">
+    <main className="relative min-h-0 w-full overflow-hidden bg-slate-100" style={{ height: `calc(100dvh - ${demoNoticeHeight}px)` }}>
+      <nav ref={plannerNavRef} aria-label="Planner navigation" className="absolute inset-x-0 top-0 z-50 w-full border-b border-black bg-black px-2 pt-[env(safe-area-inset-top)] text-white sm:px-8">
+        <div className="planner-nav-grid grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 py-2 sm:gap-x-3 sm:py-3 lg:min-h-[80px] lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-x-8 lg:py-0">
+          <div className="planner-nav-left flex min-w-0 items-center gap-1.5 sm:gap-7 lg:col-start-1 lg:row-start-1">
+            <img src={darkLogo} alt="Roomy" className="h-7 w-auto shrink-0 object-contain sm:h-10" />
+            <span aria-hidden="true" className={`inline-flex h-8 w-px shrink-0 ${isDarkMode ? 'bg-slate-700' : 'bg-[#62769a]'}`} />
+            <button type="button" onClick={onBack} className="inline-flex min-h-10 items-center gap-1 whitespace-nowrap text-[11px] font-medium text-slate-200 transition-colors hover:text-orange-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:gap-2 sm:text-sm">
               <span aria-hidden="true" className="text-lg">←</span>
-              <span>Back to inventory</span>
+              <span className="planner-back-short sm:hidden">Back</span>
+              <span className="planner-back-full hidden sm:inline">Back to inventory</span>
             </button>
           </div>
-          <div className={`col-span-2 row-start-2 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-2 text-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:max-w-[42vw] lg:flex-nowrap lg:justify-self-center lg:border-0 lg:pt-0 ${isDarkMode ? 'border-slate-800' : 'border-[#3d5279]'}`}>
+          <div className={`planner-nav-title col-span-2 row-start-2 flex min-w-0 flex-nowrap items-center justify-center gap-x-2 border-t pt-2 text-center lg:col-span-1 lg:col-start-2 lg:row-start-1 lg:max-w-[42vw] lg:justify-self-center lg:border-0 lg:pt-0 sm:gap-x-3 ${isDarkMode ? 'border-slate-800' : 'border-[#3d5279]'}`}>
             <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.08em] text-orange-500 sm:text-[11px]">Planner mode</span>
-            <span aria-hidden="true" className={`hidden h-5 w-px sm:block ${isDarkMode ? 'bg-slate-700' : 'bg-[#62769a]'}`} />
+            <span aria-hidden="true" className={`inline-flex h-4 w-px shrink-0 ${isDarkMode ? 'bg-slate-700' : 'bg-[#62769a]'}`} />
             <h1 className="min-w-0 truncate text-sm font-semibold text-white sm:text-base">{room?.name}</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
-            <button type="button" aria-label={isDarkMode ? 'Dark mode' : 'Light mode'} aria-pressed={Boolean(isDarkMode)} title={isDarkMode ? 'Dark mode' : 'Light mode'} onClick={onToggleTheme} className={`mr-3 inline-flex h-11 w-11 items-center justify-center rounded-md border text-slate-200 transition-colors hover:border-orange-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${isDarkMode ? 'border-slate-700' : 'border-[#7285a8]'}`}>
+          <div className="planner-nav-actions flex min-w-0 shrink-0 items-center gap-1 sm:gap-2 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
+            <button type="button" aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-pressed={Boolean(isDarkMode)} title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={onToggleTheme} className={`mr-0 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border text-slate-200 transition-colors hover:border-orange-500 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:mr-2 lg:mr-3 ${isDarkMode ? 'border-slate-700' : 'border-[#7285a8]'}`}>
               <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
                 {isDarkMode ? <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></> : <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5a8.5 8.5 0 1 0 12 12Z" />}
               </svg>
@@ -1190,11 +1266,11 @@ export default function PlannerWorkspace({
             <span
               role="status"
               aria-live="polite"
-              className={`max-w-[68px] text-right text-[10px] leading-tight sm:max-w-none sm:text-xs ${saveStatus === 'error' || saveStatus === 'load-error' ? 'text-red-300' : saveStatus === 'unsaved' ? 'text-orange-300' : 'text-slate-300'}`}
+              className={`hidden max-w-[68px] text-right text-[10px] leading-tight sm:block sm:max-w-none sm:text-xs ${saveStatus === 'error' || saveStatus === 'load-error' ? 'text-red-300' : saveStatus === 'unsaved' ? 'text-orange-300' : 'text-slate-300'}`}
             >
               {saveStatus === 'loading' ? 'Loading…' : saveStatus === 'unsaved' ? 'Unsaved changes' : saveStatus === 'saving' ? 'Saving…' : saveStatus === 'load-error' ? 'Load failed' : saveStatus === 'error' ? 'Save failed' : lastSavedLabel}
             </span>
-            <Button variant="primary" onClick={() => save(true)} disabled={!hasDimensions || busy || !isLayoutReady} className="shrink-0">
+            <Button variant="primary" onClick={() => save(true)} disabled={!hasDimensions || busy || !isLayoutReady} className="min-h-11 shrink-0 px-2 text-[11px] sm:px-3 sm:text-sm">
               {saveStatus === 'saving' ? 'Saving…' : 'Save now'}
             </Button>
           </div>
@@ -1206,7 +1282,7 @@ export default function PlannerWorkspace({
       )}
 
       <div className="absolute inset-0 z-10 w-full">
-        <div className="absolute bottom-4 left-1/2 z-40 flex -translate-x-1/2 gap-2">
+        <div className="absolute left-1/2 z-40 flex -translate-x-1/2 gap-2" style={{ bottom: isSmallPlannerScreen ? mobileDockHeight + mobilePanelHeight + 12 : 16 }}>
           <button type="button" aria-label="Undo planner change" onClick={undo} disabled={!history.length || busy} className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition-colors hover:border-orange-500 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="m8 4-4 4 4 4" /><path d="M4 8h10a6 6 0 0 1 0 12h-2" /></svg>
           </button>
@@ -1215,14 +1291,30 @@ export default function PlannerWorkspace({
           </button>
         </div>
 
-        {error && <p role="alert" className="absolute left-1/2 top-36 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 border border-red-300 bg-white p-3 text-sm text-red-700">{error}</p>}
+        {error && <p role="alert" className="absolute left-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 border border-red-300 bg-white p-3 text-sm text-red-700" style={{ top: plannerNavHeight + 16 }}>{error}</p>}
 
         {!hasDimensions ? (
           <p className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border border-slate-300 bg-white p-6 text-sm text-slate-700">Set this room’s width and depth from the Rooms page to use the planner.</p>
         ) : (
   <div className="relative h-full w-full">
-              <aside className="planner-side-panel absolute left-4 top-28 z-30 flex h-[calc(50vh-6rem)] max-h-[calc(100%-7rem)] w-[280px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-300 p-4 md:top-28 md:h-[calc(100vh-8rem)] md:max-h-[calc(100%-7rem)] lg:top-24 lg:h-[calc(100vh-7rem)]">
-              <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-slate-900">Room items</h2><span className="text-xs text-slate-500">{layout.items.length} placed</span></div>
+              <aside
+                ref={isSmallPlannerScreen && mobilePanel === 'items' ? mobilePanelRef : undefined}
+                id="planner-items-panel"
+                aria-label="Room items"
+                className={`planner-side-panel absolute left-4 top-28 z-30 h-[calc(50vh-6rem)] max-h-[calc(100%-7rem)] w-[280px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden border border-slate-300 p-3 md:top-28 md:h-[calc(100vh-8rem)] md:max-h-[calc(100%-7rem)] lg:top-24 lg:h-[calc(100vh-7rem)] sm:p-4 ${isSmallPlannerScreen ? mobilePanel === 'items' ? 'flex' : 'hidden' : 'flex'}`}
+                style={isSmallPlannerScreen ? {
+                  position: 'fixed',
+                  left: 0,
+                  right: 0,
+                  top: 'auto',
+                  bottom: mobileDockHeight,
+                  width: 'auto',
+                  maxWidth: 'none',
+                  height: `${mobilePanelHeightLimit}px`,
+                  maxHeight: `${mobilePanelMaxHeightLimit}px`,
+                } : undefined}
+              >
+              <div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><h2 className="text-base font-semibold text-slate-900">Room items</h2><span className="text-xs text-slate-500">{layout.items.length} placed</span></div>{isSmallPlannerScreen && <button type="button" aria-label="Close room items panel" onClick={() => setMobilePanel(null)} className="min-h-9 min-w-9 rounded-full text-xl text-slate-600 hover:bg-slate-100">×</button>}</div>
               <label className="relative mt-3 block"><span className="sr-only">Find room item</span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.5 4.5" /></svg><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Find item" className="min-h-10 w-full border border-slate-300 bg-white py-2 pl-9 pr-3 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>
               <div role="group" aria-label="Filter room items by type" className="mt-2 flex gap-1">
                 {[['all', 'All items'], ['items', 'Items'], ['storage', 'Storage']].map(([value, label]) => <button key={value} type="button" aria-pressed={itemTypeFilter === value} onClick={() => setItemTypeFilter(value)} className={`min-h-7 flex-1 border px-1 text-[9px] font-medium transition-colors ${itemTypeFilter === value ? 'border-orange-500 bg-orange-500 text-white' : 'border-slate-300 bg-white text-slate-600 hover:border-orange-500 hover:text-orange-500'}`}>{label}</button>)}
@@ -1233,7 +1325,7 @@ export default function PlannerWorkspace({
                     {filteredItems.length ? filteredItems.map((item) => {
                       const placed = layout.items.some((shape) => shape.itemId === item.id)
                       const unavailable = Boolean(item.parentStorageId || item.storedInside)
-                      return <PlannerItemCard key={item.id} item={item} placed={placed} unavailable={unavailable} photoRootRef={itemGridRef} onLoadPhoto={onLoadPhoto} onActivate={() => { if (placed) setSelectedId(item.id); else if (!unavailable) addItem(item) }} />
+                      return <PlannerItemCard key={item.id} item={item} placed={placed} unavailable={unavailable} photoRootRef={itemGridRef} onLoadPhoto={onLoadPhoto} onActivate={() => { if (placed) { setSelectedId(item.id); if (isSmallPlannerScreen) setMobilePanel('selected') } else if (!unavailable) addItem(item) }} />
                     }) : <p className="col-span-2 py-6 text-center text-xs text-slate-500">No matching room items.</p>}
                   </div>
                 </div>
@@ -1242,7 +1334,7 @@ export default function PlannerWorkspace({
               <p className="mt-2 text-[9px] leading-3 text-slate-500">Stored items stay in inventory and do not appear separately on the room canvas.</p>
             </aside>
 
-            <section className="absolute inset-0 z-0 min-w-0 bg-transparent p-0">
+            <section className="absolute inset-0 z-0 min-w-0 bg-transparent p-0" style={{ top: plannerNavHeight, bottom: isSmallPlannerScreen ? mobileDockHeight + mobilePanelHeight : 0 }}>
               <div
                 ref={viewportRef}
                 role="region"
@@ -1318,23 +1410,40 @@ export default function PlannerWorkspace({
 
                   <div aria-hidden="true" className="pointer-events-none absolute z-10 border-[7px] border-solid" style={{ left: 31, top: 31, width: floorWidth + 14, height: floorHeight + 14, borderTopColor: hoveredWall === 'top' || selectedWall === 'top' ? '#f97316' : '#64748b', borderRightColor: hoveredWall === 'right' || selectedWall === 'right' ? '#f97316' : '#64748b', borderBottomColor: hoveredWall === 'bottom' || selectedWall === 'bottom' ? '#f97316' : '#64748b', borderLeftColor: hoveredWall === 'left' || selectedWall === 'left' ? '#f97316' : '#64748b' }} />
                   {[
-                    { id: 'top', style: { left: 38, top: 31, width: floorWidth, height: 14 }, cursor: 'cursor-ns-resize' },
-                    { id: 'right', style: { left: 38 + floorWidth - 7, top: 38, width: 14, height: floorHeight }, cursor: 'cursor-ew-resize' },
-                    { id: 'bottom', style: { left: 38, top: 38 + floorHeight - 7, width: floorWidth, height: 14 }, cursor: 'cursor-ns-resize' },
-                    { id: 'left', style: { left: 31, top: 38, width: 14, height: floorHeight }, cursor: 'cursor-ew-resize' },
+                    { id: 'top', style: { left: 38, top: isSmallPlannerScreen ? 26 : 31, width: floorWidth, height: isSmallPlannerScreen ? 24 : 14 }, cursor: 'cursor-ns-resize' },
+                    { id: 'right', style: { left: 38 + floorWidth - (isSmallPlannerScreen ? 12 : 7), top: 38, width: isSmallPlannerScreen ? 24 : 14, height: floorHeight }, cursor: 'cursor-ew-resize' },
+                    { id: 'bottom', style: { left: 38, top: 38 + floorHeight - (isSmallPlannerScreen ? 12 : 7), width: floorWidth, height: isSmallPlannerScreen ? 24 : 14 }, cursor: 'cursor-ns-resize' },
+                    { id: 'left', style: { left: isSmallPlannerScreen ? 26 : 31, top: 38, width: isSmallPlannerScreen ? 24 : 14, height: floorHeight }, cursor: 'cursor-ew-resize' },
                   ].map((wall) => <button key={wall.id} type="button" data-planner-wall aria-label={`Resize room from ${wall.id} wall`} aria-pressed={selectedWall === wall.id} onPointerDown={(event) => startWallDrag(event, wall.id)} onPointerMove={dragWall} onPointerUp={endWallDrag} onPointerCancel={endWallDrag} onMouseEnter={() => setHoveredWall(wall.id)} onMouseLeave={() => setHoveredWall(null)} onClick={() => setSelectedWall(wall.id)} className={`absolute z-20 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${wall.cursor}`} style={wall.style} />)}
                 </div>
 
-                <div className="absolute bottom-4 left-3 z-40 md:left-[304px]" onPointerDown={(event) => event.stopPropagation()}><Button variant="secondary" onClick={togglePerson} className="min-h-9 px-3 py-2 text-xs">{person ? 'Hide person' : '+ Add person'}</Button></div>
+                <div className="absolute bottom-4 left-3 z-40 lg:left-[304px]" onPointerDown={(event) => event.stopPropagation()}><Button variant="secondary" onClick={togglePerson} className="min-h-9 px-3 py-2 text-xs">{person ? 'Hide person' : '+ Add person'}</Button></div>
                 <div className="absolute bottom-4 right-3 z-40 flex items-center gap-1" onPointerDown={(event) => event.stopPropagation()}>
                   <button type="button" aria-label="Zoom out" onClick={() => changeZoom(-0.1)} className="h-8 w-8 border border-slate-300 bg-white text-base font-semibold text-slate-700 hover:bg-slate-100">−</button>
-                  <button type="button" aria-label="Reset view" onClick={resetView} className="h-8 min-w-12 border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100">{Math.round(view.zoom * 100)}%</button>
+                    <button type="button" aria-label="Fit room to canvas" title="Fit room to canvas" onClick={resetView} className="h-8 min-w-12 border border-slate-300 bg-white px-1 text-[10px] font-semibold text-slate-700 hover:bg-slate-100">{Math.round(view.zoom * 100)}%</button>
                   <button type="button" aria-label="Zoom in" onClick={() => changeZoom(0.1)} className="h-8 w-8 border border-slate-300 bg-white text-base font-semibold text-slate-700 hover:bg-slate-100">+</button>
                 </div>
               </div>
             </section>
 
-            <aside className="planner-side-panel absolute bottom-16 right-4 z-30 max-h-[calc(50vh-6rem)] w-[300px] max-w-[calc(100vw-2rem)] overflow-y-auto border border-slate-300 p-4 md:bottom-auto md:top-24 md:max-h-[calc(100%-7rem)]">
+            <aside
+              ref={isSmallPlannerScreen && (mobilePanel === 'room' || mobilePanel === 'selected') ? mobilePanelRef : undefined}
+              id="planner-inspector-panel"
+              aria-label={selectedShape ? 'Selected item settings' : 'Room settings'}
+              className={`planner-side-panel absolute bottom-16 right-4 z-30 max-h-[calc(50vh-6rem)] w-[300px] max-w-[calc(100vw-2rem)] overflow-y-auto border border-slate-300 p-3 sm:p-4 md:bottom-auto md:top-24 md:max-h-[calc(100%-7rem)] ${isSmallPlannerScreen ? mobilePanel === 'room' || mobilePanel === 'selected' ? 'block' : 'hidden' : 'block'}`}
+              style={isSmallPlannerScreen ? {
+                position: 'fixed',
+                left: 0,
+                right: 0,
+                top: 'auto',
+                bottom: mobileDockHeight,
+                width: 'auto',
+                maxWidth: 'none',
+                height: `${mobilePanelHeightLimit}px`,
+                maxHeight: `${mobilePanelMaxHeightLimit}px`,
+              } : undefined}
+            >
+              {isSmallPlannerScreen && <div className="mb-2 flex items-center justify-between gap-2 border-b border-slate-200 pb-2"><h2 className="text-sm font-semibold text-slate-900">{selectedShape ? 'Selected item' : 'Room settings'}</h2><button type="button" aria-label="Close planner settings" onClick={() => setMobilePanel(null)} className="min-h-9 min-w-9 rounded-full text-xl text-slate-600 hover:bg-slate-100">×</button></div>}
               {isSelectedPerson ? (
                 <div><div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-slate-900">Person guide</h2><span className="text-xs text-slate-500">Temporary</span></div><p className="mt-3 text-xs leading-5 text-slate-600">A movable 50 × 30 cm reference guide. It is not included when you save the layout.</p><Button variant="tertiary" onClick={togglePerson} className="mt-4 min-h-9 px-0 py-2 text-xs text-slate-700">Hide person</Button></div>
               ) : selectedShape && selectedItem ? (
@@ -1412,6 +1521,42 @@ export default function PlannerWorkspace({
                 </div>
               )}
             </aside>
+            {isSmallPlannerScreen && hasDimensions && (
+              <nav
+                ref={mobileDockRef}
+                aria-label="Planner tools"
+                className={`absolute inset-x-0 bottom-0 z-50 border-t px-2 pt-1 pb-[calc(0.25rem+env(safe-area-inset-bottom))] shadow-lg ${isDarkMode ? 'border-slate-700 bg-[#17172b]' : 'border-slate-300 bg-white'}`}
+                style={{ position: 'fixed' }}
+              >
+                <div className="relative grid w-full grid-cols-3 gap-1">
+                  <span
+                    aria-hidden="true"
+                    className="planner-mobile-dock-indicator pointer-events-none absolute inset-y-0 left-0 z-0 rounded-sm bg-orange-500"
+                    style={{
+                      width: 'calc((100% - 0.5rem) / 3)',
+                      transform: `translateX(calc(${mobileDockIndicatorIndex * 100}% + ${mobileDockIndicatorIndex * 0.25}rem))`,
+                      opacity: activeMobileDockIndex >= 0 ? 1 : 0,
+                    }}
+                  />
+                  {mobileDockTabs.map(([panel, label, enabled]) => (
+                    <button
+                      key={panel}
+                      type="button"
+                      aria-controls={panel === 'items' ? 'planner-items-panel' : 'planner-inspector-panel'}
+                      aria-pressed={mobilePanel === panel}
+                      disabled={!enabled}
+                      onClick={() => {
+                        if (panel === 'room') setSelectedId(null)
+                        setMobilePanel((current) => current === panel ? null : panel)
+                      }}
+                      className={`relative z-10 min-h-11 rounded-sm px-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40 ${mobilePanel === panel ? 'text-white' : isDarkMode ? 'text-slate-100 hover:bg-slate-800' : 'text-slate-700 hover:bg-slate-100'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </nav>
+            )}
           </div>
         )}
       </div>
