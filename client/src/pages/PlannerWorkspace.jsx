@@ -191,6 +191,7 @@ function PlannerObjectControls({ shape, item, scale, onResizePointerDown, onRota
   return (
     <div
       aria-label={`${item?.name || 'Item'} selection controls`}
+      data-planner-object-controls
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
@@ -978,6 +979,7 @@ export default function PlannerWorkspace({
     if (event.button !== 0) return
     const shape = shapeForId(id)
     const objectElement = event.currentTarget.closest('[data-planner-object]')
+      || event.currentTarget.closest('[data-planner-object-controls]')
     const viewportBounds = viewportRef.current?.getBoundingClientRect()
     const objectBounds = objectElement?.getBoundingClientRect()
     if (!shape || !viewportBounds || !objectBounds) return
@@ -1324,10 +1326,10 @@ export default function PlannerWorkspace({
 
       <div className="absolute inset-0 z-10 w-full">
         <div className="absolute left-1/2 z-40 flex -translate-x-1/2 gap-2" style={{ bottom: isSmallPlannerScreen ? mobileDockHeight + mobilePanelHeight + 12 : 16 }}>
-          <button type="button" aria-label="Undo planner change" onClick={undo} disabled={!history.length || busy} className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition-colors hover:border-orange-500 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" aria-label="Undo planner change" onClick={undo} disabled={!history.length || !isLayoutReady} className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition-colors hover:border-orange-500 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="m8 4-4 4 4 4" /><path d="M4 8h10a6 6 0 0 1 0 12h-2" /></svg>
           </button>
-          <button type="button" aria-label="Redo planner change" onClick={redo} disabled={!future.length || busy} className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition-colors hover:border-orange-500 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" aria-label="Redo planner change" onClick={redo} disabled={!future.length || !isLayoutReady} className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition-colors hover:border-orange-500 hover:text-orange-500 disabled:cursor-not-allowed disabled:opacity-40">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5"><path d="m16 4 4 4-4 4" /><path d="M20 8H10a6 6 0 0 0 0 12h2" /></svg>
           </button>
         </div>
@@ -1516,8 +1518,8 @@ export default function PlannerWorkspace({
                             </span>
                           </div>
                           <div role="group" aria-label={`${selectedItem.name} layer order`} className="mt-1 flex h-9 w-full overflow-hidden rounded-sm border border-slate-300 bg-white">
-                            <button type="button" aria-label={`Bring ${selectedItem.name} forward`} title="Move one layer forward" disabled={selectedShape.layerOrder >= layout.items.length - 1 || busy} onClick={() => moveSelectedLayer(1)} className="min-w-0 flex-1 border-r border-slate-300 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Forward</button>
-                            <button type="button" aria-label={`Send ${selectedItem.name} backward`} title="Move one layer backward" disabled={selectedShape.layerOrder <= 0 || busy} onClick={() => moveSelectedLayer(-1)} className="min-w-0 flex-1 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Backward</button>
+                            <button type="button" aria-label={`Bring ${selectedItem.name} forward`} title="Move one layer forward" disabled={selectedShape.layerOrder >= layout.items.length - 1 || !isLayoutReady} onClick={() => moveSelectedLayer(1)} className="min-w-0 flex-1 border-r border-slate-300 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Forward</button>
+                            <button type="button" aria-label={`Send ${selectedItem.name} backward`} title="Move one layer backward" disabled={selectedShape.layerOrder <= 0 || !isLayoutReady} onClick={() => moveSelectedLayer(-1)} className="min-w-0 flex-1 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Backward</button>
                           </div>
                         </div>
                       </div>
