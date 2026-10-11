@@ -77,7 +77,7 @@ function FilterFields({ value, onChange }) {
   )
 }
 
-function ActiveFilterChips({ value, onChange, horizontalScroll = false }) {
+export function InventoryFilterChips({ value, onChange }) {
   const chips = [
     ...(value.type === 'all' ? [] : [{ key: 'type', kind: 'type', label: value.type === 'item' ? 'Regular items' : 'Storage units' }]),
     ...value.categories.map((category) => ({ key: `category-${category}`, kind: 'category', label: category })),
@@ -86,27 +86,26 @@ function ActiveFilterChips({ value, onChange, horizontalScroll = false }) {
   if (chips.length === 0) return null
 
   return (
-    <div
-      aria-label="Active inventory filters"
-      className={`flex gap-2 ${horizontalScroll ? 'max-w-full overflow-x-auto pb-1' : 'flex-wrap'}`}
-    >
-      {chips.map(({ key, kind, label }) => (
-        <button
-          key={key}
-          type="button"
-          aria-label={`Remove ${label} filter`}
-          onClick={() => {
-            if (kind === 'type') {
-              onChange({ ...value, type: 'all' })
-            } else {
-              onChange({ ...value, categories: value.categories.filter((entry) => entry !== label) })
-            }
-          }}
-          className="inventory-filter-chip inline-flex min-h-8 shrink-0 items-center gap-1 border px-2 text-[11px] font-medium"
-        >
-          {label}<span aria-hidden="true">×</span>
-        </button>
-      ))}
+    <div className="col-span-2 min-w-0 lg:col-span-3">
+      <div aria-label="Active inventory filters" className="flex min-w-0 gap-2 overflow-x-auto pb-1 lg:flex-wrap lg:overflow-x-visible">
+        {chips.map(({ key, kind, label }) => (
+          <button
+            key={key}
+            type="button"
+            aria-label={`Remove ${label} filter`}
+            onClick={() => {
+              if (kind === 'type') {
+                onChange({ ...value, type: 'all' })
+              } else {
+                onChange({ ...value, categories: value.categories.filter((entry) => entry !== label) })
+              }
+            }}
+            className="inventory-filter-chip inline-flex min-h-8 shrink-0 items-center gap-1 border px-2 text-[11px] font-medium"
+          >
+            {label}<span aria-hidden="true">×</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -222,9 +221,6 @@ export default function InventoryFilters({ value, onChange }) {
           </p>
           {activeCount > 0 && <button type="button" onClick={clearFilters} className="min-h-10 shrink-0 px-2 text-xs font-semibold text-orange-600 underline underline-offset-2">Clear</button>}
         </div>
-        <div className="mt-2">
-          <ActiveFilterChips value={value} onChange={onChange} horizontalScroll />
-        </div>
       </div>
 
       <div ref={desktopFiltersRef} className="relative hidden min-w-0 lg:block">
@@ -272,9 +268,6 @@ export default function InventoryFilters({ value, onChange }) {
               Clear
             </button>
           )}
-        </div>
-        <div className="mt-2">
-          <ActiveFilterChips value={value} onChange={onChange} />
         </div>
       </div>
 

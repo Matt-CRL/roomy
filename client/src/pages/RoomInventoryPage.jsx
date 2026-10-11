@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../components/common/Button'
 import AddItemCard from '../components/items/AddItemCard'
-import InventoryFilters from '../components/items/InventoryFilters'
+import InventoryFilters, { InventoryFilterChips } from '../components/items/InventoryFilters'
 import InventoryItemCard from '../components/items/InventoryItemCard'
 import InventoryTypeIcon from '../components/items/InventoryTypeIcon'
 import { getPhotoImageStyle } from '../data/photoDisplay'
@@ -20,10 +20,12 @@ function getItemStatus(item) {
   return 'Unstored'
 }
 
-function InventoryLoadingState({ viewMode }) {
+function InventoryLoadingState({ viewMode, hasActiveFilters }) {
+  const topSpacing = hasActiveFilters ? 'mt-3' : 'mt-6'
+
   if (viewMode === 'list') {
     return (
-      <div className="mt-6 space-y-3" aria-busy="true" aria-label="Loading inventory">
+      <div className={`${topSpacing} space-y-3`} aria-busy="true" aria-label="Loading inventory">
         {[0, 1, 2, 3, 4].map((skeleton) => (
           <div key={skeleton} className="flex min-h-16 animate-pulse items-center justify-between border border-slate-300 bg-white px-4 py-2">
             <div className="space-y-2">
@@ -38,7 +40,7 @@ function InventoryLoadingState({ viewMode }) {
   }
 
   return (
-    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-busy="true" aria-label="Loading inventory">
+    <div className={`${topSpacing} grid gap-4 sm:grid-cols-2 xl:grid-cols-4`} aria-busy="true" aria-label="Loading inventory">
       {[0, 1, 2, 3, 4, 5, 6, 7].map((skeleton) => (
         <div key={skeleton} className="animate-pulse overflow-hidden border border-slate-300 bg-white">
           <div className="h-40 bg-slate-200" />
@@ -261,6 +263,7 @@ export default function RoomInventoryPage({
   )
 
   const normalizedQuery = searchQuery.trim().toLowerCase()
+  const hasActiveFilters = filters.type !== 'all' || filters.categories.length > 0
   const visibleItems = (normalizedQuery
     ? items.filter((item) =>
         [item.name, item.category, item.storedInside]
@@ -517,7 +520,7 @@ export default function RoomInventoryPage({
               {roomName} inventory items
             </h2>
 
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-3 lg:grid-cols-[minmax(12rem,1fr)_auto_auto]">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 lg:grid-cols-[minmax(12rem,1fr)_auto_auto]">
                 <div className="relative col-span-2 min-w-0 lg:col-span-1">
                   <svg
                     aria-hidden="true"
@@ -578,12 +581,14 @@ export default function RoomInventoryPage({
                   List
                 </button>
               </div>
+
+              <InventoryFilterChips value={filters} onChange={setFilters} />
             </div>
 
             {isLoading ? (
-              <InventoryLoadingState viewMode={viewMode} />
+              <InventoryLoadingState viewMode={viewMode} hasActiveFilters={hasActiveFilters} />
             ) : (room?.itemCount ?? items.length) === 0 ? (
-              <div className="mt-6 flex min-h-80 flex-col items-center justify-center border border-dashed border-slate-300 bg-white p-8 text-center">
+              <div className={`${hasActiveFilters ? 'mt-3' : 'mt-6'} flex min-h-80 flex-col items-center justify-center border border-dashed border-slate-300 bg-white p-8 text-center`}>
                 <img
                   src={emptyRoomIcon}
                   alt=""
@@ -604,8 +609,8 @@ export default function RoomInventoryPage({
                 <div
                   className={
                     viewMode === 'grid'
-                      ? 'mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4'
-                      : 'mt-6 space-y-3'
+                      ? `${hasActiveFilters ? 'mt-3' : 'mt-6'} grid gap-4 sm:grid-cols-2 xl:grid-cols-4`
+                      : `${hasActiveFilters ? 'mt-3' : 'mt-6'} space-y-3`
                   }
                 >
                   {visibleItems.length > 0 && (
@@ -635,7 +640,7 @@ export default function RoomInventoryPage({
                 </div>
 
                 {visibleItems.length === 0 && (
-                  <div className="mt-4 px-2 py-6 text-center">
+                  <div className={`${hasActiveFilters ? 'mt-2' : 'mt-4'} px-2 py-6 text-center`}>
                     <h3 className="text-sm font-semibold text-slate-900">
                       No matching items
                     </h3>
