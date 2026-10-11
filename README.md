@@ -16,7 +16,6 @@ stored, and organise rooms while rearranging or decorating their space.
 
 **Live site:** [roomy-space.vercel.app](https://roomy-space.vercel.app/)
 **API:** [roomy-api.vercel.app](https://roomy-api.vercel.app/)
-**Demo video and presentation files:** [Google Drive folder](https://drive.google.com/drive/folders/1GDrmFDeavPP25yQ2W0k1QXCiCZY6CXAV?usp=drive_link)
 
 ## Start here
 

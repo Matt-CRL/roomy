@@ -2,8 +2,6 @@
 
 Three to five minutes, screen recorded, your own voice. Nobody watches ten.
 
-**Demo video and presentation files:** [Google Drive folder](https://drive.google.com/drive/folders/1GDrmFDeavPP25yQ2W0k1QXCiCZY6CXAV?usp=drive_link)
-
 ## The structure that always works
 
 1. **Thirty seconds.** What it is and who it is for. Show the app, not a slide.
