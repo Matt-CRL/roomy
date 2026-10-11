@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Button from '../components/common/Button'
 import InventoryTypeIcon from '../components/items/InventoryTypeIcon'
 import { getPhotoImageStyle } from '../data/photoDisplay'
+import { moveLayerOrder, normalizeLayerOrder } from '../utils/layerOrder'
 import darkLogo from '../assets/dark-logo.png'
 import {
   clamp,
@@ -71,6 +72,7 @@ function getPersistedLayout(draft) {
       depth: Number(shape.depth),
       rotation: Number(shape.rotation || 0),
       color: shape.color ?? DEFAULT_ITEM_COLOR,
+      layerOrder: Number(shape.layerOrder ?? 0),
     })),
   }
 }
@@ -101,7 +103,6 @@ function PlannerObject({
   onPointerDown,
   onPointerMove,
   onPointerUp,
-  onResizePointerDown,
   onRotatePointerDown,
   onSelect,
 }) {
@@ -136,9 +137,7 @@ function PlannerObject({
       className={`absolute flex select-none items-center justify-center px-1.5 text-center text-[10px] font-semibold text-slate-900 ${
         isPerson
           ? `${isSelected ? 'z-30' : 'z-20'} border-0 bg-transparent shadow-none`
-          : isSelected
-            ? 'z-30 overflow-visible border-2 border-orange-500 transition-colors'
-            : 'z-20 overflow-hidden border-2 border-slate-500 shadow-sm transition-shadow hover:border-orange-500 hover:shadow-md'
+          : 'overflow-hidden border-2 border-slate-500 shadow-sm transition-colors hover:border-orange-500'
       }`}
       style={{
         left: `${shape.x * scale}px`,
@@ -147,6 +146,9 @@ function PlannerObject({
         height: `${shape.depth * scale}px`,
         transform: `rotate(${shape.rotation}deg)`,
         transformOrigin: 'center',
+        zIndex: isPerson
+          ? (isSelected ? 1500 : 1000)
+          : Number(shape.layerOrder || 0) + 1,
         backgroundColor: isPerson ? 'transparent' : shape.color,
         color: isPerson ? undefined : getContrastingTextColor(shape.color),
         boxShadow: personHighlighted
@@ -170,30 +172,58 @@ function PlannerObject({
         </div>
       )}
 
-      {isSelected && (
-        <>
-          {!isPerson && ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((side) => (
-            <button
-              key={side}
-              type="button"
-              data-planner-control
-              aria-label={`Resize ${item?.name || 'item'} from ${side}`}
-              onPointerDown={(event) => onResizePointerDown(event, side)}
-              className={`absolute z-40 h-4 w-4 shrink-0 aspect-square border border-current bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-1.5 sm:w-1.5 ${handleClass(side)}`}
-            />
-          ))}
-
-          <button
-            type="button"
-            data-planner-control
-            aria-label={`Rotate ${isPerson ? 'person reference' : item?.name || 'item'}`}
-            onPointerDown={onRotatePointerDown}
-            className="absolute left-1/2 top-0 z-40 flex h-11 w-14 -translate-x-1/2 -translate-y-[calc(100%+11px)] items-center justify-center bg-transparent p-0 text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-8 sm:w-12"
-          >
-            <img src="/rotation-arrow.png" alt="" draggable="false" className="h-7 w-10 object-contain" />
-          </button>
-        </>
+      {isSelected && isPerson && (
+        <button
+          type="button"
+          data-planner-control
+          aria-label="Rotate person reference"
+          onPointerDown={onRotatePointerDown}
+          className="absolute left-1/2 top-0 z-40 flex h-11 w-14 -translate-x-1/2 -translate-y-[calc(100%+11px)] items-center justify-center bg-transparent p-0 text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-8 sm:w-12"
+        >
+          <img src="/rotation-arrow.png" alt="" draggable="false" className="h-7 w-10 object-contain" />
+        </button>
       )}
+    </div>
+  )
+}
+
+function PlannerObjectControls({ shape, item, scale, onResizePointerDown, onRotatePointerDown, onPointerMove, onPointerUp }) {
+  return (
+    <div
+      aria-label={`${item?.name || 'Item'} selection controls`}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className="pointer-events-none absolute overflow-visible border-2 border-orange-500"
+      style={{
+        left: `${shape.x * scale}px`,
+        top: `${shape.y * scale}px`,
+        width: `${shape.width * scale}px`,
+        height: `${shape.depth * scale}px`,
+        transform: `rotate(${shape.rotation}deg)`,
+        transformOrigin: 'center',
+        zIndex: 2000,
+      }}
+    >
+      {['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map((side) => (
+        <button
+          key={side}
+          type="button"
+          data-planner-control
+          aria-label={`Resize ${item?.name || 'item'} from ${side}`}
+          onPointerDown={(event) => onResizePointerDown(event, side)}
+          className={`pointer-events-auto absolute z-40 h-4 w-4 shrink-0 aspect-square border border-current bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-1.5 sm:w-1.5 ${handleClass(side)}`}
+        />
+      ))}
+      <button
+        type="button"
+        data-planner-control
+        aria-label={`Rotate ${item?.name || 'item'}`}
+        onPointerDown={onRotatePointerDown}
+        className="pointer-events-auto absolute left-1/2 top-0 z-40 flex h-11 w-14 -translate-x-1/2 -translate-y-[calc(100%+11px)] items-center justify-center bg-transparent p-0 text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 sm:h-8 sm:w-12"
+      >
+        <img src="/rotation-arrow.png" alt="" draggable="false" className="h-7 w-10 object-contain" />
+      </button>
     </div>
   )
 }
@@ -546,7 +576,7 @@ export default function PlannerWorkspace({
         const nextWidth = Number(next.widthCm ?? room.widthCm)
         const nextDepth = Number(next.depthCm ?? room.depthCm)
         const nextDraft = {
-          items: (next.items || []).map(cloneShape),
+          items: normalizeLayerOrder(next.items || []).map(cloneShape),
           widthCm: nextWidth,
           depthCm: nextDepth,
           person: null,
@@ -701,6 +731,7 @@ export default function PlannerWorkspace({
 
   function replaceDraft(nextDraft) {
     const normalized = cloneDraft(nextDraft)
+    normalized.items = normalizeLayerOrder(normalized.items)
     draftRef.current = normalized
     setLayout((current) => ({ ...current, items: normalized.items }))
     setRoomDimensions({ widthCm: normalized.widthCm, depthCm: normalized.depthCm })
@@ -742,6 +773,15 @@ export default function PlannerWorkspace({
     restoreSnapshot(next)
     setFuture((entries) => entries.slice(1))
     setHistory((entries) => [...entries.slice(-(HISTORY_LIMIT - 1)), current])
+  }
+
+  function moveSelectedLayer(direction) {
+    if (!selectedShape || selectedId === PERSON_ID) return
+    const previous = snapshot()
+    const nextItems = moveLayerOrder(draftRef.current.items, selectedId, direction)
+    if (nextItems === draftRef.current.items) return
+    replaceDraft({ ...draftRef.current, items: nextItems })
+    recordSnapshot(previous)
   }
 
   function setCanvasView(nextView) {
@@ -1064,6 +1104,7 @@ export default function PlannerWorkspace({
       depth: Number.isFinite(rawDepth) && rawDepth > 0 ? rawDepth : DEFAULT_ITEM_DIMENSION,
       rotation: 0,
       color: DEFAULT_ITEM_COLOR,
+      layerOrder: draftRef.current.items.length,
     })
     replaceDraft({ ...draftRef.current, items: [...draftRef.current.items, shape] })
     setSelectedId(item.id)
@@ -1186,7 +1227,7 @@ export default function PlannerWorkspace({
       const hasPersistedEditsDuringSave = currentDraftKey !== requestKey
       const draftChangedDuringSave = !sameDraft(requestDraft, draftRef.current)
       const nextDraft = {
-        items: (next.items || []).map(cloneShape),
+        items: normalizeLayerOrder(next.items || []).map(cloneShape),
         widthCm: Number(next.widthCm ?? payload.widthCm),
         depthCm: Number(next.depthCm ?? payload.depthCm),
         person: draftRef.current.person,
@@ -1404,8 +1445,9 @@ export default function PlannerWorkspace({
                         ))}
                       </svg>
                     )}
-                    {layout.items.map((shape) => <PlannerObject key={shape.itemId} shape={shape} item={items.find((item) => item.id === shape.itemId)} isSelected={selectedId === shape.itemId} scale={baseScale} onPointerDown={(event) => startObjectDrag(event, shape.itemId)} onPointerMove={(event) => { moveObject(event); resizeObject(event); rotateObject(event) }} onPointerUp={endObjectInteraction} onResizePointerDown={(event, side) => startResize(event, shape.itemId, side)} onRotatePointerDown={(event) => startRotation(event, shape.itemId)} onSelect={() => setSelectedId(shape.itemId)} />)}
-                    {person && <PlannerObject shape={person} isPerson isSelected={isSelectedPerson} scale={baseScale} onPointerDown={(event) => startObjectDrag(event, PERSON_ID)} onPointerMove={(event) => { moveObject(event); resizeObject(event); rotateObject(event) }} onPointerUp={endObjectInteraction} onResizePointerDown={() => {}} onRotatePointerDown={(event) => startRotation(event, PERSON_ID)} onSelect={() => setSelectedId(PERSON_ID)} />}
+                    {normalizeLayerOrder(layout.items).map((shape) => <PlannerObject key={shape.itemId} shape={shape} item={items.find((item) => item.id === shape.itemId)} isSelected={selectedId === shape.itemId} scale={baseScale} onPointerDown={(event) => startObjectDrag(event, shape.itemId)} onPointerMove={(event) => { moveObject(event); resizeObject(event); rotateObject(event) }} onPointerUp={endObjectInteraction} onSelect={() => setSelectedId(shape.itemId)} />)}
+                    {person && <PlannerObject shape={person} isPerson isSelected={isSelectedPerson} scale={baseScale} onPointerDown={(event) => startObjectDrag(event, PERSON_ID)} onPointerMove={(event) => { moveObject(event); resizeObject(event); rotateObject(event) }} onPointerUp={endObjectInteraction} onRotatePointerDown={(event) => startRotation(event, PERSON_ID)} onSelect={() => setSelectedId(PERSON_ID)} />}
+                    {selectedShape && selectedId !== PERSON_ID && selectedItem && <PlannerObjectControls shape={selectedShape} item={selectedItem} scale={baseScale} onResizePointerDown={(event, side) => startResize(event, selectedId, side)} onRotatePointerDown={(event) => startRotation(event, selectedId)} onPointerMove={(event) => { resizeObject(event); rotateObject(event) }} onPointerUp={endObjectInteraction} />}
                   </div>
 
                   <div aria-hidden="true" className="pointer-events-none absolute z-10 border-[7px] border-solid" style={{ left: 31, top: 31, width: floorWidth + 14, height: floorHeight + 14, borderTopColor: hoveredWall === 'top' || selectedWall === 'top' ? '#f97316' : '#64748b', borderRightColor: hoveredWall === 'right' || selectedWall === 'right' ? '#f97316' : '#64748b', borderBottomColor: hoveredWall === 'bottom' || selectedWall === 'bottom' ? '#f97316' : '#64748b', borderLeftColor: hoveredWall === 'left' || selectedWall === 'left' ? '#f97316' : '#64748b' }} />
@@ -1464,8 +1506,20 @@ export default function PlannerWorkspace({
                         {[
                           ['x', 'X (cm)'],
                           ['y', 'Y (cm)'],
-                          ['rotation', 'Rotation (°)'],
-                        ].map(([field, label]) => <label key={field} className="text-[10px] font-semibold text-slate-700">{label}<input type="number" min={field === 'rotation' ? 0 : field === 'x' || field === 'y' ? -PLANNER_MAX_DIMENSION : 1} step="0.1" value={selectedShape[field]} onFocus={startInspectorEdit} onBlur={finishInspectorEdit} onChange={(event) => updateInspectorField(field, event.target.value)} className="mt-1 min-h-9 w-full border border-slate-300 bg-white px-2 text-xs font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>)}
+                        ].map(([field, label]) => <label key={field} className="text-[10px] font-semibold text-slate-700">{label}<input type="number" min={field === 'x' || field === 'y' ? -PLANNER_MAX_DIMENSION : 1} step="0.1" value={selectedShape[field]} onFocus={startInspectorEdit} onBlur={finishInspectorEdit} onChange={(event) => updateInspectorField(field, event.target.value)} className="mt-1 min-h-9 w-full border border-slate-300 bg-white px-2 text-xs font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>)}
+                        <label className="text-[10px] font-semibold text-slate-700">Rotation (°)<input type="number" min={0} step="0.1" value={selectedShape.rotation} onFocus={startInspectorEdit} onBlur={finishInspectorEdit} onChange={(event) => updateInspectorField('rotation', event.target.value)} className="mt-1 min-h-9 w-full border border-slate-300 bg-white px-2 text-xs font-normal text-slate-900 outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500" /></label>
+                        <div className="min-w-0">
+                          <div className="flex min-h-[14px] items-center justify-between gap-1 text-[10px] font-semibold text-slate-700">
+                            <h3>Layer</h3>
+                            <span className="whitespace-nowrap text-[9px] font-normal text-slate-500" aria-live="polite">
+                              {selectedShape.layerOrder + 1} of {layout.items.length}
+                            </span>
+                          </div>
+                          <div role="group" aria-label={`${selectedItem.name} layer order`} className="mt-1 flex h-9 w-full overflow-hidden rounded-sm border border-slate-300 bg-white">
+                            <button type="button" aria-label={`Bring ${selectedItem.name} forward`} title="Move one layer forward" disabled={selectedShape.layerOrder >= layout.items.length - 1 || busy} onClick={() => moveSelectedLayer(1)} className="min-w-0 flex-1 border-r border-slate-300 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Forward</button>
+                            <button type="button" aria-label={`Send ${selectedItem.name} backward`} title="Move one layer backward" disabled={selectedShape.layerOrder <= 0 || busy} onClick={() => moveSelectedLayer(-1)} className="min-w-0 flex-1 px-1 text-[10px] font-medium text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-40">Backward</button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="mt-4 border-t border-slate-200 pt-4">

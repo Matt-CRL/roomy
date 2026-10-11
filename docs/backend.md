@@ -95,10 +95,13 @@ PUT /api/rooms/<room-uuid>/layout
 Authorization: Bearer <user-access-token>
 Content-Type: application/json
 
-{"revision":0,"items":[{"itemId":"<item-uuid>","x":20,"y":35,"width":120,"depth":55,"rotation":0,"color":"#f97316"}]}
+{"revision":0,"items":[{"itemId":"<item-uuid>","x":20,"y":35,"width":120,"depth":55,"rotation":0,"color":"#f97316","layerOrder":0}]}
 ```
 
 `GET /api/rooms/<room-uuid>/layout` returns the current revision and shapes.
+The response sorts placements from back to front. `layerOrder` is a unique
+integer from 0 through 499 within the room; higher values appear in front.
+Older requests may omit it, in which case the request's item order is retained.
 The save replaces that room's placements and increments the revision. A stale
 save returns `409`. Coordinates and footprints are approximate centimeters
 relative to the room. `x` and `y` locate the unrotated shape origin; after

@@ -651,12 +651,12 @@ export default function RoomInventoryPage({
 
       {focusedItem && (
         <div
-          className="fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
+          className="item-focus-overlay fixed inset-0 z-40 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-3 backdrop-blur-sm sm:p-6"
           role="presentation"
           onMouseDown={() => setFocusedItem(null)}
         >
           <div
-            className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col items-center gap-4 overflow-y-auto overflow-x-hidden sm:max-h-[calc(100dvh-3rem)] lg:overflow-hidden lg:flex-row lg:items-center lg:gap-5 ${
+            className={`flex w-full flex-col items-center gap-4 lg:flex-row lg:items-center lg:gap-5 ${
               isInventoryOpen ? 'max-w-5xl' : 'max-w-3xl'
             }`}
             onMouseDown={(event) => event.stopPropagation()}
@@ -672,7 +672,7 @@ export default function RoomInventoryPage({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="item-focus-title"
-              className="item-focus-dialog max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl overflow-y-auto sm:max-h-[calc(100dvh-3rem)] lg:max-h-none lg:overflow-visible"
+              className="item-focus-dialog w-full max-w-3xl"
                 style={
                   focusOrigin
                     ? {
@@ -826,10 +826,17 @@ export default function RoomInventoryPage({
                     </p>
                   ) : (
                     <>
+                  {containedItems.length === 0 && (
+                    <div className="inventory-sidebar-card card-tilt-disabled flex min-h-32 snap-start snap-always items-center justify-center border border-slate-300 bg-white p-4 text-center lg:hidden">
+                      <div>
+                        <InventoryTypeIcon className="mx-auto h-9 w-9 text-slate-400" />
+                        <p className="mt-2 text-xs font-semibold text-slate-700">No items yet</p>
+                        <p className="mt-1 text-[10px] text-slate-500">This storage unit is empty.</p>
+                      </div>
+                    </div>
+                  )}
                   {(onStoreItem || containedItems.length === 0) && (
-                    <div className={`inventory-sidebar-card storage-add-item-card card-tilt-disabled snap-start snap-always overflow-hidden border border-slate-300 bg-white ${
-                      containedItems.length > 0 ? 'mobile-storage-add-hidden' : ''
-                    }`}>
+                    <div className="inventory-sidebar-card storage-add-item-card card-tilt-disabled mobile-storage-add-hidden snap-start snap-always overflow-hidden border border-slate-300 bg-white">
                       <div className={`storage-add-item-header px-3 py-3 ${isAddItemPickerOpen ? 'border-b border-slate-200' : ''}`}>
                         {onStoreItem && (
                           <button
@@ -839,9 +846,7 @@ export default function RoomInventoryPage({
                             onClick={toggleAddItemPicker}
                             className="relative flex min-h-10 w-full items-center justify-center rounded-sm px-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-orange-50 hover:text-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                           >
-                            <span>
-                              {containedItems.length === 0 ? 'Add item' : 'Add another item'}
-                            </span>
+                            <span>{containedItems.length === 0 ? 'Add item' : 'Add another item'}</span>
                             <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={`absolute right-1 h-4 w-4 text-slate-400 transition-transform ${isAddItemPickerOpen ? 'rotate-180' : ''}`}>
                               <path d="m5 7.5 5 5 5-5" />
                             </svg>

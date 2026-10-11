@@ -1,6 +1,7 @@
 // Browser-only Roomy adapter for the visible demo mode.
 
 import { categories } from '../data/categoryOptions'
+import { normalizeLayerOrder } from '../utils/layerOrder'
 
 const ROOMS = 'roomy:rooms'
 const ITEMS = 'roomy:items'
@@ -104,8 +105,9 @@ export async function deleteItem(id, { includeContents, contentsVersion } = {}) 
 }
 export async function getLayout(roomId) {
   const room = await getRoom(roomId)
-  return readRows(LAYOUTS).find((layout) => layout.roomId === roomId) ||
+  const layout = readRows(LAYOUTS).find((entry) => entry.roomId === roomId) ||
     { roomId, widthCm: room.widthCm ?? null, depthCm: room.depthCm ?? null, revision: 0, items: [] }
+  return { ...layout, items: normalizeLayerOrder(layout.items) }
 }
 export async function saveLayout(roomId, input) {
   const layouts = readRows(LAYOUTS)
@@ -136,6 +138,7 @@ export async function saveLayout(roomId, input) {
     ...input,
     widthCm: Number(widthCm),
     depthCm: Number(depthCm),
+    items: normalizeLayerOrder(input.items),
     revision: current.revision + 1,
     updatedAt: new Date().toISOString(),
   }

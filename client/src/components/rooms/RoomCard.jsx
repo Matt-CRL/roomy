@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import openDoorIcon from '../../assets/open-door.png'
 import { getViewportMenuPosition } from '../../utils/viewportMenu'
+import { normalizeLayerOrder } from '../../utils/layerOrder'
 
 function getContrastingTextColor(color) {
   const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(color || '')
@@ -45,7 +46,7 @@ export default function RoomCard({
   const previewX = (360 - previewWidth) / 2
   const previewY = (200 - previewHeight) / 2 + 12
   const wallThickness = 7
-  const placedItems = Array.isArray(layout?.items) ? layout.items : []
+  const placedItems = normalizeLayerOrder(Array.isArray(layout?.items) ? layout.items : [])
 
   useEffect(() => {
     if (!isOptionsOpen) return undefined
@@ -78,12 +79,18 @@ export default function RoomCard({
       const trigger = triggerRef.current?.getBoundingClientRect()
       const menu = menuRef.current?.getBoundingClientRect()
       if (!trigger || !menu) return
-      setMenuPosition(getViewportMenuPosition({
+      const position = getViewportMenuPosition({
         trigger,
         menu,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
-      }))
+      })
+      const maxLeft = Math.max(8, window.innerWidth - menu.width - 8)
+      const left = Math.min(maxLeft, Math.max(8, position.left - 12))
+      setMenuPosition({
+        ...position,
+        left,
+      })
     }
 
     updateMenuPosition()
