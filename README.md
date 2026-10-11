@@ -1,5 +1,7 @@
 # Roomy
 
+![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
+
 Roomy is a personal room inventory and approximate 2D layout-planning web
 application. It helps people record belongings, remember where items are
 stored, and organise rooms while rearranging or decorating their space.
@@ -14,6 +16,7 @@ stored, and organise rooms while rearranging or decorating their space.
 
 **Live site:** [roomy-space.vercel.app](https://roomy-space.vercel.app/)
 **API:** [roomy-api.vercel.app](https://roomy-api.vercel.app/)
+**Demo video and presentation files:** [Google Drive folder](https://drive.google.com/drive/folders/1GDrmFDeavPP25yQ2W0k1QXCiCZY6CXAV?usp=drive_link)
 
 ## Start here
 
@@ -544,8 +547,11 @@ npm run test:config
 
 ![Roomy Add Item form](docs/assets/add-item-form.png)
 
-These screenshots show the Roomy frontend; their freshness against the latest
-interface still needs review. The live app is available at
+### Room Planner
+
+![Roomy room planner](docs/assets/room-planner.png)
+
+These screenshots show the current Roomy interface. The live app is available at
 [roomy-space.vercel.app](https://roomy-space.vercel.app/).
 
 ## Known issues and next steps
@@ -605,8 +611,6 @@ ChatGPT/Codex assisted with parts of the frontend, backend planning and
 implementation, and code review. The dated record of prompts, decisions, and
 corrections is available in
 [AI-USAGE.md](AI-USAGE.md).
-
-![Built with AI assistance](https://img.shields.io/badge/built%20with-AI%20assistance-0b5fff)
 
 ## License
 
