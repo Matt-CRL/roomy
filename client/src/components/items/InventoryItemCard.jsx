@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import InventoryTypeIcon from './InventoryTypeIcon'
 import { getPhotoImageStyle } from '../../data/photoDisplay'
+import { getViewportMenuPosition } from '../../utils/viewportMenu'
 
 function StorageOptionThumbnail({ storage, onLoadPhoto }) {
   const imageRef = useRef(null)
@@ -79,9 +80,12 @@ export default function InventoryItemCard({
   const currentPhotoKey = useRef(photoKey)
   currentPhotoKey.current = photoKey
   const optionsRef = useRef(null)
+  const optionsTriggerRef = useRef(null)
+  const optionsMenuRef = useRef(null)
   const storageOptionsListRef = useRef(null)
   const [photoError, setPhotoError] = useState(false)
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState(null)
   const [isStoragePickerOpen, setIsStoragePickerOpen] = useState(false)
   const [storageActionBusy, setStorageActionBusy] = useState(false)
   const [storageActionError, setStorageActionError] = useState('')
@@ -112,6 +116,7 @@ export default function InventoryItemCard({
       if (!optionsRef.current?.contains(event.target)) {
         setIsOptionsOpen(false)
         setIsStoragePickerOpen(false)
+        setMenuPosition(null)
       }
     }
 
@@ -119,6 +124,8 @@ export default function InventoryItemCard({
       if (event.key === 'Escape') {
         setIsOptionsOpen(false)
         setIsStoragePickerOpen(false)
+        setMenuPosition(null)
+        optionsTriggerRef.current?.focus()
       }
     }
 
@@ -129,6 +136,37 @@ export default function InventoryItemCard({
       document.removeEventListener('keydown', handleKeyDown)
     }
   }, [isOptionsOpen])
+
+  useLayoutEffect(() => {
+    if (!isOptionsOpen) return undefined
+
+    function updateMenuPosition() {
+      const trigger = optionsTriggerRef.current?.getBoundingClientRect()
+      const menuElement = optionsMenuRef.current
+      const menu = menuElement?.getBoundingClientRect()
+      if (!trigger || !menu || !menuElement) return
+      const position = getViewportMenuPosition({
+        trigger,
+        menu,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+      })
+      const maxLeft = Math.max(8, window.innerWidth - menu.width - 8)
+      const left = Math.min(maxLeft, Math.max(8, position.left - 12))
+      setMenuPosition({
+        ...position,
+        left,
+      })
+    }
+
+    updateMenuPosition()
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+    }
+  }, [isOptionsOpen, isStoragePickerOpen, storageActionBusy, storageActionError, availableStorageOptions.length])
 
   useEffect(() => {
     if (!isStoragePickerOpen) return undefined
@@ -234,11 +272,15 @@ export default function InventoryItemCard({
           aria-expanded={isOptionsOpen}
           onClick={(event) => {
             event.stopPropagation()
-            setIsOptionsOpen((open) => !open)
+            setIsOptionsOpen((open) => {
+              if (open) setMenuPosition(null)
+              return !open
+            })
             setIsStoragePickerOpen(false)
             setStorageActionError('')
           }}
           onDoubleClick={(event) => event.stopPropagation()}
+          ref={optionsTriggerRef}
           className="inline-flex h-8 min-w-14 items-center justify-center rounded-full text-lg leading-none text-slate-600 transition-colors hover:bg-slate-200 hover:text-orange-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
         >
           <span aria-hidden="true">⋯</span>
@@ -248,7 +290,9 @@ export default function InventoryItemCard({
           <div
             role="menu"
             aria-label={`${item.name} options`}
-            className="night-dropdown-menu absolute bottom-10 left-1/2 z-40 w-36 -translate-x-1/2 rounded-md border border-slate-300 bg-white p-1.5 shadow-lg"
+            ref={optionsMenuRef}
+            style={menuPosition || { visibility: 'hidden' }}
+            className="night-dropdown-menu fixed z-[60] w-36 rounded-md border border-slate-300 bg-white p-1.5 shadow-lg"
             onClick={(event) => event.stopPropagation()}
             onDoubleClick={(event) => event.stopPropagation()}
           >

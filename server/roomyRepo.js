@@ -315,10 +315,11 @@ export async function enqueuePhotoCleanup(db, paths) {
 export async function getLayout(db, ownerId, roomId) {
   const room = await ownedRoom(db, ownerId, roomId)
   const row = (await db.query('SELECT revision,updated_at FROM roomy_layouts WHERE owner_id=$1 AND room_id=$2', [ownerId, roomId])).rows[0]
-  const items = (await db.query(`SELECT item_id,x,y,width,depth,rotation,color FROM roomy_layout_items
-    WHERE owner_id=$1 AND room_id=$2 ORDER BY item_id`, [ownerId, roomId])).rows.map((item) => ({
+  const items = (await db.query(`SELECT item_id,x,y,width,depth,rotation,color,layer_order FROM roomy_layout_items
+    WHERE owner_id=$1 AND room_id=$2 ORDER BY layer_order,item_id`, [ownerId, roomId])).rows.map((item) => ({
     itemId: item.item_id, x: Number(item.x), y: Number(item.y), width: Number(item.width),
     depth: Number(item.depth), rotation: Number(item.rotation), color: item.color,
+    layerOrder: Number(item.layer_order),
   }))
   return { roomId, widthCm: room.width_cm === null ? null : Number(room.width_cm),
     depthCm: room.depth_cm === null ? null : Number(room.depth_cm),
@@ -338,9 +339,9 @@ export async function saveLayout(pool, ownerId, roomId, validate) {
     if (current.revision !== revision) throw conflict('This layout changed elsewhere. Reload before saving.')
     await db.query('DELETE FROM roomy_layout_items WHERE owner_id=$1 AND room_id=$2', [ownerId, roomId])
     for (const item of items) {
-      await db.query(`INSERT INTO roomy_layout_items(owner_id,room_id,item_id,x,y,width,depth,rotation,color)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [ownerId, roomId, item.itemId, item.x, item.y, item.width, item.depth, item.rotation, item.color])
+      await db.query(`INSERT INTO roomy_layout_items(owner_id,room_id,item_id,x,y,width,depth,rotation,color,layer_order)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [ownerId, roomId, item.itemId, item.x, item.y, item.width, item.depth, item.rotation, item.color, item.layerOrder])
       await db.query(`UPDATE roomy_items SET width_cm=$4,depth_cm=$5,updated_at=now()
         WHERE owner_id=$1 AND room_id=$2 AND id=$3`,
       [ownerId, roomId, item.itemId, item.width, item.depth])

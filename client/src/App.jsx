@@ -18,6 +18,17 @@ const ROOMS_STORAGE_KEY = 'roomy:rooms'
 const ITEMS_STORAGE_KEY = 'roomy:items'
 const DEMO_THEME_STORAGE_KEY = 'roomy:demo-theme'
 
+function addRoomPreviewItemNames(layout, roomItems) {
+  const itemsById = new Map(roomItems.map((item) => [item.id, item]))
+  return {
+    ...layout,
+    items: (Array.isArray(layout?.items) ? layout.items : []).map((placement) => ({
+      ...placement,
+      name: itemsById.get(placement.itemId)?.name || 'Item',
+    })),
+  }
+}
+
 function readDemoThemePreference() {
   try {
     return window.localStorage.getItem(DEMO_THEME_STORAGE_KEY) === 'dark'
@@ -820,14 +831,7 @@ export default function App() {
             : await listEveryItem(room.id, { q: '', type: 'all', categories: '' })
         }
 
-        const itemsById = new Map(roomItems.map((item) => [item.id, item]))
-        return [room.id, {
-          ...layout,
-          items: placements.map((placement) => ({
-            ...placement,
-            name: itemsById.get(placement.itemId)?.name || 'Item',
-          })),
-        }]
+        return [room.id, addRoomPreviewItemNames(layout, roomItems)]
       } catch {
         return [room.id, { items: [], updatedAt: null, previewUnavailable: true }]
       }
@@ -971,6 +975,10 @@ export default function App() {
 
   async function handleSavePlannerLayout(roomId, input) {
     const savedLayout = await run(() => api.saveLayout(roomId, input))
+    setRoomLayouts((currentLayouts) => ({
+      ...currentLayouts,
+      [roomId]: addRoomPreviewItemNames(savedLayout, plannerItems),
+    }))
     inventoryLists.current.clear()
     try {
       const allItemsFilter = { q: '', type: 'all', categories: '' }

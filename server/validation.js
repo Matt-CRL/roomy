@@ -127,8 +127,13 @@ export function layoutInput(body, room) {
   }
   const roomWidth = Number(nextDimensions.widthCm)
   const roomDepth = Number(nextDimensions.depthCm)
+  const hasLayerOrders = body.items.some((entry) => Object.hasOwn(entry || {}, 'layerOrder'))
+  if (hasLayerOrders && body.items.some((entry) => !Object.hasOwn(entry || {}, 'layerOrder'))) {
+    throw badRequest('layerOrder must be provided for every item or omitted for every item')
+  }
   const seen = new Set()
-  const items = body.items.map((entry) => {
+  const seenLayers = new Set()
+  const items = body.items.map((entry, index) => {
     const itemId = uuid(entry?.itemId, 'itemId')
     if (seen.has(itemId)) throw badRequest('Each item may appear once in the layout')
     seen.add(itemId)
@@ -149,7 +154,13 @@ export function layoutInput(body, room) {
     }
     const color = entry.color ?? '#1d1b31'
     if (typeof color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(color)) throw badRequest('Invalid color')
-    return { itemId, x, y, width, depth, rotation, color }
+    const layerOrder = hasLayerOrders ? entry.layerOrder : index
+    if (!Number.isInteger(layerOrder) || layerOrder < 0 || layerOrder > 499) {
+      throw badRequest('layerOrder must be an integer between 0 and 499')
+    }
+    if (seenLayers.has(layerOrder)) throw badRequest('Each item must have a unique layerOrder')
+    seenLayers.add(layerOrder)
+    return { itemId, x, y, width, depth, rotation, color, layerOrder }
   })
   return { revision: body.revision, widthCm: roomWidth, depthCm: roomDepth, items }
 }

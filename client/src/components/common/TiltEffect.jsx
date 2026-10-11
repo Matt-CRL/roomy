@@ -13,7 +13,7 @@ export default function TiltEffect({
   children,
   className = '',
   disabled = false,
-  maxTilt = 7,
+  maxTilt = 10,
 }) {
   const [tilt, setTilt] = useState(INITIAL_TILT)
 
@@ -29,8 +29,8 @@ export default function TiltEffect({
     const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height))
 
     setTilt({
-      rotateX: (0.5 - y) * maxTilt,
-      rotateY: (x - 0.5) * maxTilt,
+      rotateX: (0.5 - y) * 2 * maxTilt,
+      rotateY: (x - 0.5) * 2 * maxTilt,
       glowX: x * 100,
       glowY: y * 100,
       glareAngle: 115 + x * 40 + (0.5 - y) * 20,
@@ -46,19 +46,23 @@ export default function TiltEffect({
 
   return (
     <div
-      className={`tilt-effect ${isActive ? 'tilt-effect-active' : ''} ${disabled ? 'tilt-effect-disabled' : ''} ${className}`}
+      className="tilt-effect-sensor"
       onPointerMove={handlePointerMove}
       onPointerLeave={resetTilt}
-      style={{
-        '--tilt-glow-x': `${tilt.glowX}%`,
-        '--tilt-glow-y': `${tilt.glowY}%`,
-        '--tilt-glare-angle': `${tilt.glareAngle}deg`,
-        transform: isActive
-          ? `perspective(1200px) rotateX(${tilt.rotateX}deg) rotateY(${tilt.rotateY}deg) translateZ(0)`
-          : undefined,
-      }}
     >
-      {children}
+      <div
+        className={`tilt-effect ${isActive ? 'tilt-effect-active' : ''} ${disabled ? 'tilt-effect-disabled' : ''} ${className}`}
+        style={{
+          '--tilt-glow-x': `${tilt.glowX}%`,
+          '--tilt-glow-y': `${tilt.glowY}%`,
+          '--tilt-glare-angle': `${tilt.glareAngle}deg`,
+          transform: isActive
+            ? `perspective(900px) rotateX(${tilt.rotateX}deg) rotateY(${tilt.rotateY}deg) translateZ(0)`
+            : undefined,
+        }}
+      >
+        {children}
+      </div>
     </div>
   )
 }

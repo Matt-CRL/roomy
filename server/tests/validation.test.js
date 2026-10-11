@@ -53,12 +53,27 @@ test('layout rejects duplicates and shapes beyond user room dimensions', () => {
   const shape = { itemId: 'bfa3aca1-45c4-4c93-8fdc-e781059e050a', x: 250, y: 20, width: 40, depth: 60 }
   assert.equal(layoutInput({ revision: 0, items: [shape] }, room).items.length, 1)
   assert.equal(layoutInput({ revision: 0, items: [shape] }, room).items[0].color, '#1d1b31')
+  assert.equal(layoutInput({ revision: 0, items: [shape] }, room).items[0].layerOrder, 0)
   assert.equal(layoutInput({ revision: 0, items: [{ ...shape, x: 0.29 }] }, room).items[0].x, 0.29)
   assert.deepEqual(layoutInput({ revision: 0, widthCm: 320, depthCm: 420, items: [shape] }, room).widthCm, 320)
   assert.throws(() => layoutInput({ revision: 0, items: [shape, shape] }, room), /once/)
   assert.throws(() => layoutInput({ revision: 0, items: [{ ...shape, width: 51 }] }, room), /outside/)
   assert.throws(() => layoutInput({ revision: 0, items: [{ ...shape, rotation: 45 }] }, room), /outside/)
   assert.throws(() => layoutInput({ revision: 0, widthCm: 300, items: [shape] }, room), /together/)
+})
+
+test('layout accepts a complete unique layer order and rejects malformed orders', () => {
+  const room = { width_cm: 300, depth_cm: 400 }
+  const first = { itemId: 'bfa3aca1-45c4-4c93-8fdc-e781059e050a', x: 10, y: 20, width: 30, depth: 30, layerOrder: 1 }
+  const second = { itemId: 'a42ccde7-9223-4b61-a24e-1a27e02d5f7e', x: 50, y: 20, width: 30, depth: 30, layerOrder: 0 }
+  const parsed = layoutInput({ revision: 0, items: [first, second] }, room)
+  assert.deepEqual(parsed.items.map((item) => item.layerOrder), [1, 0])
+  assert.throws(() => layoutInput({ revision: 0, items: [first, { ...second, layerOrder: 1 }] }, room), /unique layerOrder/)
+  assert.throws(() => layoutInput({ revision: 0, items: [first, { ...second, layerOrder: 1.5 }] }, room), /integer between 0 and 499/)
+  assert.throws(() => layoutInput({ revision: 0, items: [first, { ...second, layerOrder: 500 }] }, room), /integer between 0 and 499/)
+  const { layerOrder: ignoredLayerOrder, ...secondWithoutLayer } = second
+  assert.equal(ignoredLayerOrder, 0)
+  assert.throws(() => layoutInput({ revision: 0, items: [first, secondWithoutLayer] }, room), /provided for every item/)
 })
 
 test('layout accepts negative unrotated origins only when the rotated footprint stays inside the room', () => {
@@ -86,7 +101,7 @@ test('planner save updates the room and placed item dimensions in one transactio
     id: roomId, owner_id: ownerId, name: 'Bedroom', width_cm: 300, depth_cm: 400,
     created_at: new Date(), updated_at: new Date(),
   }
-  const shape = { itemId, x: 40, y: 50, width: 120, depth: 80, rotation: 0, color: '#f97316' }
+  const shape = { itemId, x: 40, y: 50, width: 120, depth: 80, rotation: 0, color: '#f97316', layerOrder: 0 }
   const client = {
     async query(sql, values = []) {
       calls.push({ sql, values })
@@ -100,8 +115,8 @@ test('planner save updates the room and placed item dimensions in one transactio
         return { rows: [] }
       }
       if (sql.startsWith('SELECT revision,updated_at FROM roomy_layouts')) return { rows: [{ revision: 1, updated_at: new Date() }] }
-      if (sql.startsWith('SELECT item_id,x,y,width,depth,rotation,color FROM roomy_layout_items')) {
-        return { rows: [{ item_id: itemId, x: 40, y: 50, width: 120, depth: 80, rotation: 0, color: '#f97316' }] }
+      if (sql.startsWith('SELECT item_id,x,y,width,depth,rotation,color,layer_order FROM roomy_layout_items')) {
+        return { rows: [{ item_id: itemId, x: 40, y: 50, width: 120, depth: 80, rotation: 0, color: '#f97316', layer_order: 0 }] }
       }
       return { rows: [] }
     },
@@ -115,6 +130,7 @@ test('planner save updates the room and placed item dimensions in one transactio
   assert.equal(saved.widthCm, 360)
   assert.equal(saved.depthCm, 440)
   assert.ok(calls.some(({ sql, values }) => sql.startsWith('UPDATE roomy_items SET width_cm') && values[3] === 120 && values[4] === 80))
+  assert.ok(calls.some(({ sql, values }) => sql.startsWith('INSERT INTO roomy_layout_items') && values[9] === 0))
   assert.ok(calls.some(({ sql, values }) => sql.startsWith('UPDATE roomy_rooms SET width_cm') && values[2] === 360 && values[3] === 440))
   assert.equal(calls[0].sql, 'BEGIN')
   assert.equal(calls.at(-1).sql, 'COMMIT')
@@ -214,10 +230,10 @@ test('planner reads synchronized placement dimensions after an item form edit', 
       if (sql.startsWith('SELECT revision,updated_at FROM roomy_layouts')) {
         return { rows: [{ revision: 2, updated_at: new Date('2026-10-09T00:00:00.000Z') }] }
       }
-      if (sql.startsWith('SELECT item_id,x,y,width,depth,rotation,color FROM roomy_layout_items')) {
+      if (sql.startsWith('SELECT item_id,x,y,width,depth,rotation,color,layer_order FROM roomy_layout_items')) {
         shapesQuery = sql
         return { rows: [{ item_id: 'bfa3aca1-45c4-4c93-8fdc-e781059e050a',
-          x: 40, y: 57.5, width: 80.5, depth: 45.25, rotation: 90, color: '#f97316' }] }
+          x: 40, y: 57.5, width: 80.5, depth: 45.25, rotation: 90, color: '#f97316', layer_order: 7 }] }
       }
       return { rows: [] }
     },
@@ -229,5 +245,7 @@ test('planner reads synchronized placement dimensions after an item form edit', 
   assert.equal(layout.items[0].depth, 45.25)
   assert.equal(layout.items[0].x, 40)
   assert.equal(layout.items[0].y, 57.5)
+  assert.equal(layout.items[0].layerOrder, 7)
   assert.match(shapesQuery, /FROM roomy_layout_items/)
+  assert.match(shapesQuery, /ORDER BY layer_order,item_id/)
 })
