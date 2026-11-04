@@ -490,6 +490,7 @@ AI-assisted work in [AI-USAGE.md](AI-USAGE.md) where applicable.
 | The browser cannot reach the API | Start the server, check `VITE_API_BASE_URL`, and make `CORS_ORIGINS` match the exact frontend origin printed by Vite. |
 | Database security preflight fails | Follow the runbook's role and policy checks. Do not disable row-level security to work around the error. |
 | Database certificate error | Locally configure the trusted database CA with `DATABASE_SSL_CA_FILE`; on Vercel use backend-only `DATABASE_SSL_CA` PEM contents. Never disable TLS verification. |
+| A new git worktree fails with missing packages or settings | A worktree is a fresh folder: run `npm ci` in `client/` and `server/`, and copy each `.env.example` to `.env` again. `.env` files are not committed, so they do not carry over. |
 | A release build rejects localhost or demo mode | This is intentional. Use `npm run dev` locally or `npm run build:demo` for a demo artifact. |
 
 Restart the client after changing its `.env`, and restart the server after
